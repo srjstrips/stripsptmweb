@@ -1,11 +1,9 @@
 const { Pool } = require('pg');
-require('dotenv').config();
-
-const isSupabase = (process.env.DATABASE_URL || '').includes('supabase.co');
+require('dotenv').config({ path: require('path').join(__dirname, '..', '..', '.env') });
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: isSupabase ? { rejectUnauthorized: false } : false,
+  ssl: { rejectUnauthorized: false },
 
   // Small pool — Supabase free tier limits total connections
   max: 3,
