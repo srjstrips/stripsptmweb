@@ -1,0 +1,32 @@
+# ── Next.js build output ─────────────────────────────────────
+.next/
+out/
+build/
+
+# ── Dependencies ─────────────────────────────────────────────
+node_modules/
+
+# ── Environment secrets ──────────────────────────────────────
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Keep example
+!.env.local.example
+
+# ── Vercel ───────────────────────────────────────────────────
+.vercel/
+
+# ── TypeScript ───────────────────────────────────────────────
+*.tsbuildinfo
+next-env.d.ts
+
+# ── Logs ─────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+
+# ── OS ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db

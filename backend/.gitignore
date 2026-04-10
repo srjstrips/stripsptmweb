@@ -1,0 +1,28 @@
+# ── Environment secrets ──────────────────────────────────────
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+
+# Keep example
+!.env.example
+
+# ── Dependencies ─────────────────────────────────────────────
+node_modules/
+
+# ── Build output ─────────────────────────────────────────────
+dist/
+build/
+
+# ── Logs ─────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+
+# ── PM2 ──────────────────────────────────────────────────────
+.pm2/
+
+# ── OS ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db

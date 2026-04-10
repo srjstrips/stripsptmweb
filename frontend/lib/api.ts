@@ -1,0 +1,194 @@
+import axios from 'axios';
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+
+export const api = axios.create({
+  baseURL: BASE_URL,
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 15000,
+});
+
+// ── Types ──────────────────────────────────────────────────────
+
+export interface Rack {
+  id: string;
+  rack_name: string;
+  location: string | null;
+  capacity: number;
+  total_prime_tonnage: number;
+  total_random_tonnage: number;
+  created_at: string;
+}
+
+export interface ProductionEntry {
+  id: string;
+  date: string;
+  size: string;
+  thickness: string;
+  length: string;
+  od: string | null;
+  // Operational
+  shift: 'Day' | 'Night' | null;
+  mill_no: 'Mill1' | 'Mill2' | 'Mill3' | 'Mill4' | null;
+  weight_per_pipe: number | null;
+  stamp: string | null;
+  raw_material_grade: string | null;
+  // Prime
+  prime_tonnage: number;
+  prime_pieces: number;
+  // Joint
+  joint_pipes: number;
+  joint_tonnage: number;
+  // CQ
+  cq_pipes: number;
+  cq_tonnage: number;
+  // Open
+  open_pipes: number;
+  open_tonnage: number;
+  // Calculated aggregates
+  random_pipes: number;
+  random_tonnage: number;
+  total_pipes: number;
+  total_tonnage: number;
+  // Scrap KG
+  scrap_endcut_kg: number;
+  scrap_bitcut_kg: number;
+  scrap_burning_kg: number;
+  total_scrap_kg: number;
+  // Quality
+  rejection_percent: number;
+  // Storage (optional)
+  rack_id: string | null;
+  rack_name: string | null;
+  created_at: string;
+}
+
+export interface MillSummaryRow {
+  mill_no: string;
+  size: string;
+  thickness: string;
+  total_pipes: number;
+  total_tonnage: number;
+  prime_pipes: number;
+  prime_tonnage: number;
+  random_pipes: number;
+  random_tonnage: number;
+}
+
+export interface DispatchEntry {
+  id: string;
+  date: string;
+  size: string;
+  thickness: string;
+  length: string;
+  prime_tonnage: number;
+  prime_pieces: number;
+  random_tonnage: number;
+  random_pieces: number;
+  party_name: string | null;
+  vehicle_no: string | null;
+  loading_slip_no: string | null;
+  order_tat: string | null;
+  weight_per_pipe: number | null;
+  pdi: string | null;
+  supervisor: string | null;
+  delivery_location: string | null;
+  remark: string | null;
+  created_at: string;
+}
+
+export interface RackStock {
+  id: string;
+  rack_id: string;
+  rack_name: string;
+  location: string | null;
+  size: string;
+  thickness: string;
+  prime_tonnage: number;
+  prime_pieces: number;
+  random_tonnage: number;
+  random_pieces: number;
+  total_tonnage: number;
+  total_pieces: number;
+  updated_at: string;
+}
+
+export interface StockTotals {
+  total_prime_tonnage: number;
+  total_prime_pieces: number;
+  total_random_tonnage: number;
+  total_random_pieces: number;
+  grand_total_tonnage: number;
+  grand_total_pieces: number;
+}
+
+export interface StockSummaryRow {
+  size: string;
+  thickness: string;
+  prime_tonnage: number;
+  prime_pieces: number;
+  random_tonnage: number;
+  random_pieces: number;
+}
+
+export interface ReportProductionRow extends StockSummaryRow {
+  scrap_tonnage: number;
+  slit_wastage: number;
+}
+
+export interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+}
+
+// ── API helpers ────────────────────────────────────────────────
+
+export const racksApi = {
+  list: () => api.get<{ success: boolean; data: Rack[] }>('/api/racks'),
+  create: (data: Partial<Rack>) =>
+    api.post<{ success: boolean; data: Rack }>('/api/racks', data),
+  delete: (id: string) =>
+    api.delete<{ success: boolean; message: string }>(`/api/racks/${id}`),
+};
+
+export const productionApi = {
+  list: (params?: Record<string, string | number>) =>
+    api.get<{ success: boolean; data: ProductionEntry[]; pagination: Pagination }>(
+      '/api/production', { params }
+    ),
+  create: (data: Partial<ProductionEntry>) =>
+    api.post<{ success: boolean; data: ProductionEntry }>('/api/production', data),
+  update: (id: string, data: Partial<ProductionEntry>) =>
+    api.put<{ success: boolean; data: ProductionEntry }>(`/api/production/${id}`, data),
+  delete: (id: string) =>
+    api.delete<{ success: boolean; message: string }>(`/api/production/${id}`),
+  millSummary: () =>
+    api.get<{ success: boolean; data: MillSummaryRow[] }>('/api/production/mill-summary'),
+};
+
+export const dispatchApi = {
+  list: (params?: Record<string, string | number>) =>
+    api.get<{ success: boolean; data: DispatchEntry[]; pagination: Pagination }>(
+      '/api/dispatch', { params }
+    ),
+  create: (data: Partial<DispatchEntry>) =>
+    api.post<{ success: boolean; data: DispatchEntry }>('/api/dispatch', data),
+  delete: (id: string) =>
+    api.delete<{ success: boolean; message: string }>(`/api/dispatch/${id}`),
+};
+
+export const stockApi = {
+  get: (params?: Record<string, string>) =>
+    api.get<{ success: boolean; data: RackStock[]; totals: StockTotals; summary: StockSummaryRow[] }>(
+      '/api/stock', { params }
+    ),
+  report: (params?: Record<string, string>) =>
+    api.get<{
+      success: boolean;
+      production: ReportProductionRow[];
+      dispatch: StockSummaryRow[];
+      scrap: { total_scrap: number; total_slit_wastage: number };
+    }>('/api/stock/report', { params }),
+};

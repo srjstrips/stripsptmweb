@@ -1,0 +1,62 @@
+# ============================================================
+# Root .gitignore — PTM Inward/Outward System
+# ============================================================
+
+# ── Environment / Secrets ────────────────────────────────────
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+*.env
+
+# Keep example files (safe to share)
+!.env.example
+!.env.local.example
+
+# ── Node.js ──────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ── Next.js (frontend) ───────────────────────────────────────
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.vercel/
+
+# ── Backend build ────────────────────────────────────────────
+backend/dist/
+backend/build/
+
+# ── Logs ─────────────────────────────────────────────────────
+logs/
+*.log
+backend/logs/
+
+# ── OS files ─────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor / IDE ─────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ── TypeScript ───────────────────────────────────────────────
+*.tsbuildinfo
+frontend/next-env.d.ts
+
+# ── Misc ─────────────────────────────────────────────────────
+*.pem
+.cache/
+tmp/
+temp/
