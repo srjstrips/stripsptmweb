@@ -1,9 +1,12 @@
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 const { Pool } = require('pg');
 require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
+
+  // Small pool — Supabase free tier limits total connections
   max: 3,
   min: 0,
   idleTimeoutMillis: 8000,
