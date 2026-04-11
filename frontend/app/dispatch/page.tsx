@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, ChangeEvent, FormEvent } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, Trash2, Truck, Filter, Download, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Truck, Filter, Download, AlertCircle, Upload } from 'lucide-react';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import PageHeader from '@/components/PageHeader';
@@ -10,6 +10,7 @@ import StatCard from '@/components/StatCard';
 import EmptyState from '@/components/EmptyState';
 import Spinner from '@/components/Spinner';
 import { dispatchApi, stockApi, DispatchEntry, StockSummaryRow } from '@/lib/api';
+import CsvImportModal from '@/components/CsvImportModal';
 import { PIPE_SIZES, PIPE_THICKNESSES, STANDARD_LENGTH } from '@/lib/constants';
 
 const EMPTY_FORM = {
@@ -50,6 +51,7 @@ export default function DispatchPage() {
   const [pagination, setPagination] = useState({ page: 1, total: 0, pages: 1 });
   const [availableStock, setAvailableStock] = useState<StockSummaryRow | null>(null);
   const [checkingStock, setCheckingStock]   = useState(false);
+  const [showImport, setShowImport]         = useState(false);
 
   const loadEntries = useCallback(async (page = 1) => {
     setLoading(true);
@@ -208,6 +210,7 @@ export default function DispatchPage() {
         actions={
           <>
             <button onClick={exportExcel} className="btn-secondary"><Download size={15} /> Export</button>
+            <button onClick={() => setShowImport(true)} className="btn-secondary"><Upload size={15} /> Import CSV</button>
             <button onClick={() => setShowForm((v) => !v)} className="btn-primary"><Plus size={15} /> New Dispatch</button>
           </>
         }
@@ -499,6 +502,13 @@ export default function DispatchPage() {
           </div>
         )}
       </div>
+
+      <CsvImportModal
+        type="dispatch"
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        onSuccess={() => loadEntries()}
+      />
     </div>
   );
 }

@@ -210,6 +210,83 @@ router.post('/', dispatchValidation, validate, async (req, res, next) => {
   }
 });
 
+// ── POST /api/dispatch/import ─────────────────────────────────
+// Bulk-insert historical dispatch entries without stock validation/deduction.
+router.post('/import', async (req, res, next) => {
+  const { rows } = req.body;
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ success: false, message: 'No rows provided' });
+  }
+  if (rows.length > 500) {
+    return res.status(400).json({ success: false, message: 'Maximum 500 rows per import' });
+  }
+
+  const results = { success_count: 0, error_count: 0, errors: [] };
+  const client = await getClient();
+
+  try {
+    await client.query('BEGIN');
+
+    for (let idx = 0; idx < rows.length; idx++) {
+      const row = rows[idx];
+      const rowNum = idx + 2;
+
+      const missing = [];
+      if (!row.date)      missing.push('date');
+      if (!row.size)      missing.push('size');
+      if (!row.thickness) missing.push('thickness');
+      if (!row.length)    missing.push('length');
+
+      if (missing.length > 0) {
+        results.error_count++;
+        results.errors.push({ row: rowNum, message: `Missing required fields: ${missing.join(', ')}` });
+        continue;
+      }
+
+      const pt  = parseFloat(row.prime_tonnage  || 0);
+      const pp  = parseInt(row.prime_pieces      || 0, 10);
+      const rt  = parseFloat(row.random_tonnage || 0);
+      const rp  = parseInt(row.random_pieces    || 0, 10);
+      const wpp = row.weight_per_pipe ? parseFloat(row.weight_per_pipe) : null;
+
+      await client.query('SAVEPOINT row_save');
+      try {
+        await client.query(
+          `INSERT INTO dispatch_entries
+            (date, size, thickness, length,
+             prime_tonnage, prime_pieces, random_tonnage, random_pieces,
+             party_name, vehicle_no, loading_slip_no, order_tat,
+             weight_per_pipe, pdi, supervisor, delivery_location, remark)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+          [
+            row.date, row.size, row.thickness, row.length,
+            pt, pp, rt, rp,
+            row.party_name || null, row.vehicle_no || null,
+            row.loading_slip_no || null, row.order_tat || null,
+            wpp, row.pdi || null, row.supervisor || null,
+            row.delivery_location || null, row.remark || null,
+          ]
+        );
+        await client.query('RELEASE SAVEPOINT row_save');
+        results.success_count++;
+      } catch (rowErr) {
+        await client.query('ROLLBACK TO SAVEPOINT row_save');
+        results.error_count++;
+        results.errors.push({ row: rowNum, message: rowErr.message });
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, ...results });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
 // ── DELETE /api/dispatch/:id ──────────────────────────────────
 router.delete('/:id', async (req, res, next) => {
   const client = await getClient();

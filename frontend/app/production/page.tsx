@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, ChangeEvent, FormEvent } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, Trash2, Factory, Filter, Download, BarChart3, Pencil, X } from 'lucide-react';
+import { Plus, Trash2, Factory, Filter, Download, BarChart3, Pencil, X, Upload } from 'lucide-react';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import PageHeader from '@/components/PageHeader';
@@ -10,6 +10,7 @@ import StatCard from '@/components/StatCard';
 import EmptyState from '@/components/EmptyState';
 import Spinner from '@/components/Spinner';
 import { productionApi, racksApi, ProductionEntry, MillSummaryRow, Rack } from '@/lib/api';
+import CsvImportModal from '@/components/CsvImportModal';
 import { PIPE_SIZES, PIPE_THICKNESSES, STANDARD_LENGTH } from '@/lib/constants';
 
 const SHIFTS = ['Day', 'Night'] as const;
@@ -71,6 +72,7 @@ export default function ProductionPage() {
   const [scrapEnteredForShift, setScrapEnteredForShift] = useState(false);
   // null = new entry, uuid = editing existing
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false);
 
   const loadEntries = useCallback(async (page = 1) => {
     setLoading(true);
@@ -298,6 +300,7 @@ export default function ProductionPage() {
         actions={
           <>
             <button onClick={exportExcel} className="btn-secondary"><Download size={15} /> Export</button>
+            <button onClick={() => setShowImport(true)} className="btn-secondary"><Upload size={15} /> Import CSV</button>
             <button onClick={() => { setShowForm(true); setEditingId(null); setForm({ ...EMPTY_FORM }); }} className="btn-primary"><Plus size={15} /> New Entry</button>
           </>
         }
@@ -782,6 +785,13 @@ export default function ProductionPage() {
           )}
         </div>
       )}
+
+      <CsvImportModal
+        type="production"
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        onSuccess={() => { loadEntries(); loadMillSummary(); }}
+      />
     </div>
   );
 }

@@ -153,6 +153,13 @@ export const racksApi = {
     api.delete<{ success: boolean; message: string }>(`/api/racks/${id}`),
 };
 
+export interface ImportResult {
+  success: boolean;
+  success_count: number;
+  error_count: number;
+  errors: Array<{ row: number; message: string }>;
+}
+
 export const productionApi = {
   list: (params?: Record<string, string | number>) =>
     api.get<{ success: boolean; data: ProductionEntry[]; pagination: Pagination }>(
@@ -166,6 +173,8 @@ export const productionApi = {
     api.delete<{ success: boolean; message: string }>(`/api/production/${id}`),
   millSummary: () =>
     api.get<{ success: boolean; data: MillSummaryRow[] }>('/api/production/mill-summary'),
+  import: (rows: Record<string, string>[]) =>
+    api.post<ImportResult>('/api/production/import', { rows }),
 };
 
 export const dispatchApi = {
@@ -177,6 +186,8 @@ export const dispatchApi = {
     api.post<{ success: boolean; data: DispatchEntry }>('/api/dispatch', data),
   delete: (id: string) =>
     api.delete<{ success: boolean; message: string }>(`/api/dispatch/${id}`),
+  import: (rows: Record<string, string>[]) =>
+    api.post<ImportResult>('/api/dispatch/import', { rows }),
 };
 
 export const stockApi = {

@@ -19,8 +19,11 @@ const app = express();
 const PORT = process.env.PORT || 5001;
 
 // ── Middleware ────────────────────────────────────────────────
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
-app.use(express.json());
+const allowedOrigins = (process.env.CORS_ORIGIN || '*').split(',').map((o) => o.trim());
+app.use(cors({
+  origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
+}));
+app.use(express.json({ limit: '2mb' }));
 
 // ── Health check ──────────────────────────────────────────────
 app.get('/api/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));

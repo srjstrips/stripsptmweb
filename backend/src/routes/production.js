@@ -386,6 +386,137 @@ router.put('/:id', productionValidation, validate, async (req, res, next) => {
   }
 });
 
+// ── POST /api/production/import ───────────────────────────────
+// Bulk-insert historical production entries without touching rack_stock.
+router.post('/import', async (req, res, next) => {
+  const { rows } = req.body;
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ success: false, message: 'No rows provided' });
+  }
+  if (rows.length > 500) {
+    return res.status(400).json({ success: false, message: 'Maximum 500 rows per import' });
+  }
+
+  const results = { success_count: 0, error_count: 0, errors: [] };
+  const client = await getClient();
+
+  try {
+    await client.query('BEGIN');
+
+    for (let idx = 0; idx < rows.length; idx++) {
+      const row = rows[idx];
+      const rowNum = idx + 2; // row 1 = header in CSV
+
+      // ── In-memory validation ─────────────────────────────
+      const missing = [];
+      if (!row.date)     missing.push('date');
+      if (!row.size)     missing.push('size');
+      if (!row.thickness) missing.push('thickness');
+      if (!row.length)   missing.push('length');
+      if (!row.shift)    missing.push('shift');
+      if (!row.mill_no)  missing.push('mill_no');
+
+      if (missing.length > 0) {
+        results.error_count++;
+        results.errors.push({ row: rowNum, message: `Missing required fields: ${missing.join(', ')}` });
+        continue;
+      }
+      if (!['Day', 'Night'].includes(row.shift)) {
+        results.error_count++;
+        results.errors.push({ row: rowNum, message: 'shift must be Day or Night' });
+        continue;
+      }
+      if (!['Mill1', 'Mill2', 'Mill3', 'Mill4'].includes(row.mill_no)) {
+        results.error_count++;
+        results.errors.push({ row: rowNum, message: 'mill_no must be Mill1, Mill2, Mill3, or Mill4' });
+        continue;
+      }
+
+      const _primeTonnage  = parseFloat(row.prime_tonnage  || 0);
+      const _primePieces   = parseInt(row.prime_pieces      || 0, 10);
+      const _jointPipes    = parseInt(row.joint_pipes        || 0, 10);
+      const _jointTonnage  = parseFloat(row.joint_tonnage   || 0);
+      const _cqPipes       = parseInt(row.cq_pipes           || 0, 10);
+      const _cqTonnage     = parseFloat(row.cq_tonnage      || 0);
+      const _openPipes     = parseInt(row.open_pipes         || 0, 10);
+      const _openTonnage   = parseFloat(row.open_tonnage    || 0);
+      const _endcutKg      = parseFloat(row.scrap_endcut_kg  || 0);
+      const _bitcutKg      = parseFloat(row.scrap_bitcut_kg  || 0);
+      const _burningKg     = parseFloat(row.scrap_burning_kg || 0);
+
+      const random_pipes   = _jointPipes   + _cqPipes   + _openPipes;
+      const random_tonnage = _jointTonnage + _cqTonnage + _openTonnage;
+      const total_pipes    = _primePieces  + random_pipes;
+      const total_tonnage  = _primeTonnage + random_tonnage;
+      const total_scrap_kg = _endcutKg     + _bitcutKg  + _burningKg;
+
+      await client.query('SAVEPOINT row_save');
+      try {
+        await client.query(
+          `INSERT INTO production_entries (
+             date, size, thickness, length, od,
+             shift, mill_no,
+             weight_per_pipe, stamp, raw_material_grade,
+             prime_tonnage, prime_pieces,
+             joint_pipes, joint_tonnage,
+             cq_pipes, cq_tonnage,
+             open_pipes, open_tonnage,
+             random_pipes, random_tonnage,
+             total_pipes, total_tonnage,
+             scrap_endcut_kg, scrap_bitcut_kg, scrap_burning_kg, total_scrap_kg,
+             rejection_percent,
+             rack_id
+           ) VALUES (
+             $1,$2,$3,$4,$5,
+             $6,$7,
+             $8,$9,$10,
+             $11,$12,
+             $13,$14,
+             $15,$16,
+             $17,$18,
+             $19,$20,
+             $21,$22,
+             $23,$24,$25,$26,
+             $27,
+             $28
+           )`,
+          [
+            row.date, row.size, row.thickness, row.length, row.od || null,
+            row.shift, row.mill_no,
+            row.weight_per_pipe ? parseFloat(row.weight_per_pipe) : null,
+            row.stamp || null,
+            row.raw_material_grade || null,
+            _primeTonnage, _primePieces,
+            _jointPipes, _jointTonnage,
+            _cqPipes, _cqTonnage,
+            _openPipes, _openTonnage,
+            random_pipes, random_tonnage,
+            total_pipes, total_tonnage,
+            _endcutKg, _bitcutKg, _burningKg, total_scrap_kg,
+            parseFloat(row.rejection_percent || 0),
+            row.rack_id || null,
+          ]
+        );
+        await client.query('RELEASE SAVEPOINT row_save');
+        results.success_count++;
+      } catch (rowErr) {
+        await client.query('ROLLBACK TO SAVEPOINT row_save');
+        results.error_count++;
+        results.errors.push({ row: rowNum, message: rowErr.message });
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, ...results });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
 // ── DELETE /api/production/:id ────────────────────────────────
 router.delete('/:id', async (req, res, next) => {
   const client = await getClient();
