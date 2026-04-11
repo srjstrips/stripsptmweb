@@ -10,6 +10,7 @@ import StatCard from '@/components/StatCard';
 import Spinner from '@/components/Spinner';
 import EmptyState from '@/components/EmptyState';
 import { stockApi, productionApi, dispatchApi, ProductionEntry, DispatchEntry, ReportProductionRow, StockSummaryRow, StockAsOfRow } from '@/lib/api';
+import { PIPE_SIZES, PIPE_THICKNESSES } from '@/lib/constants';
 
 interface ReportData {
   production: ReportProductionRow[];
@@ -103,9 +104,10 @@ export default function ReportsPage() {
   }, [matrixDate]);
 
   // Pivot helpers for the matrix
-  const matrixSizes      = Array.from(new Set(matrixData.map((r) => r.size))).sort();
-  const matrixThicknesses = Array.from(new Set(matrixData.map((r) => r.thickness)))
-    .sort((a, b) => parseFloat(a) - parseFloat(b));
+  const dataSizes      = new Set(matrixData.map((r) => r.size));
+  const dataThicknesses = new Set(matrixData.map((r) => r.thickness));
+  const matrixSizes       = PIPE_SIZES.filter((s) => dataSizes.has(s));
+  const matrixThicknesses = PIPE_THICKNESSES.filter((t) => dataThicknesses.has(t));
   const matrixLookup = Object.fromEntries(
     matrixData.map((r) => [`${r.size}|${r.thickness}`, parseFloat(String(r.total_tonnage))])
   );
