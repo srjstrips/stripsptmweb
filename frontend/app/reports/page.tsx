@@ -9,7 +9,7 @@ import PageHeader from '@/components/PageHeader';
 import StatCard from '@/components/StatCard';
 import Spinner from '@/components/Spinner';
 import EmptyState from '@/components/EmptyState';
-import { stockApi, productionApi, dispatchApi, ProductionEntry, DispatchEntry, ReportProductionRow, StockSummaryRow } from '@/lib/api';
+import { stockApi, productionApi, dispatchApi, ProductionEntry, DispatchEntry, ReportProductionRow, StockSummaryRow, StockAsOfRow } from '@/lib/api';
 
 interface ReportData {
   production: ReportProductionRow[];
@@ -30,6 +30,11 @@ export default function ReportsPage() {
   const [rawProd, setRawProd] = useState<ProductionEntry[]>([]);
   const [rawDisp, setRawDisp] = useState<DispatchEntry[]>([]);
   const [activeTab, setActiveTab] = useState<TabKey>('summary');
+
+  // ── Stock Matrix state ─────────────────────────────────────
+  const [matrixDate, setMatrixDate]     = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [matrixData, setMatrixData]     = useState<StockAsOfRow[]>([]);
+  const [matrixLoading, setMatrixLoading] = useState(false);
 
   const generateReport = useCallback(async () => {
     setLoading(true);
@@ -84,6 +89,27 @@ export default function ReportsPage() {
     scrap: parseFloat(String(report.scrap?.total_scrap ?? 0)),
     slit:  parseFloat(String(report.scrap?.total_slit_wastage ?? 0)),
   } : null;
+
+  const loadMatrix = useCallback(async () => {
+    setMatrixLoading(true);
+    try {
+      const res = await stockApi.asOf(matrixDate);
+      setMatrixData(res.data.data);
+    } catch {
+      toast.error('Failed to load stock matrix');
+    } finally {
+      setMatrixLoading(false);
+    }
+  }, [matrixDate]);
+
+  // Pivot helpers for the matrix
+  const matrixSizes      = Array.from(new Set(matrixData.map((r) => r.size))).sort();
+  const matrixThicknesses = Array.from(new Set(matrixData.map((r) => r.thickness)))
+    .sort((a, b) => parseFloat(a) - parseFloat(b));
+  const matrixLookup = Object.fromEntries(
+    matrixData.map((r) => [`${r.size}|${r.thickness}`, parseFloat(String(r.total_tonnage))])
+  );
+  const matrixGrandTotal = matrixData.reduce((s, r) => s + Math.max(0, parseFloat(String(r.total_tonnage))), 0);
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'summary',    label: 'Summary' },
@@ -364,6 +390,105 @@ export default function ReportsPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* ── Stock Matrix — always visible, independent of report ── */}
+      {!loading && (
+        <div className="mt-6 space-y-4">
+          <div className="card">
+            <p className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+              <BarChart3 size={15} className="text-green-600" /> Stock Matrix (as of date)
+            </p>
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <label className="form-label">As of Date</label>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={matrixDate}
+                  onChange={(e) => setMatrixDate(e.target.value)}
+                />
+              </div>
+              <button className="btn-primary mb-0.5" onClick={loadMatrix} disabled={matrixLoading}>
+                {matrixLoading ? <Spinner size={15} /> : <Search size={15} />}
+                {matrixLoading ? 'Loading…' : 'Show Stock'}
+              </button>
+              <p className="text-xs text-slate-400 mb-1 self-end">
+                Production − Dispatch up to and including this date.
+              </p>
+            </div>
+          </div>
+
+          {matrixLoading && <div className="flex justify-center py-8"><Spinner size={28} /></div>}
+
+          {!matrixLoading && matrixData.length === 0 && (
+            <div className="card">
+              <EmptyState icon={BarChart3} title="No stock data" description="Select a date and click Show Stock." />
+            </div>
+          )}
+
+          {!matrixLoading && matrixData.length > 0 && (
+            <div className="card overflow-x-auto p-0">
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Size × Thickness — Total Tonnage (MT)</p>
+                  <p className="text-xs text-slate-400">As of {format(new Date(matrixDate + 'T00:00:00'), 'dd MMM yyyy')}</p>
+                </div>
+                <span className="text-sm font-bold text-green-700">
+                  Grand Total: {matrixGrandTotal.toFixed(3)} MT
+                </span>
+              </div>
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="table-th bg-slate-100 font-bold text-slate-700 sticky left-0">Size ↓ / Thick →</th>
+                    {matrixThicknesses.map((t) => (
+                      <th key={t} className="table-th text-center text-blue-700">{t} mm</th>
+                    ))}
+                    <th className="table-th text-right bg-green-50 text-green-700 font-bold">Total MT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {matrixSizes.map((size, si) => {
+                    const rowTotal = matrixThicknesses.reduce((s, t) => s + Math.max(0, matrixLookup[`${size}|${t}`] ?? 0), 0);
+                    return (
+                      <tr key={size} className={si % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                        <td className="table-td font-semibold text-slate-700 sticky left-0 bg-inherit">{size}</td>
+                        {matrixThicknesses.map((t) => {
+                          const val = matrixLookup[`${size}|${t}`] ?? null;
+                          return (
+                            <td key={t} className="table-td text-center">
+                              {val !== null && val > 0
+                                ? <span className="font-medium text-slate-800">{val.toFixed(3)}</span>
+                                : <span className="text-slate-300">—</span>}
+                            </td>
+                          );
+                        })}
+                        <td className="table-td text-right font-bold text-green-700">
+                          {rowTotal > 0 ? rowTotal.toFixed(3) : <span className="text-slate-300">—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot className="border-t-2 border-slate-200 bg-slate-100 font-bold text-xs">
+                  <tr>
+                    <td className="table-td text-slate-700 sticky left-0 bg-slate-100">TOTAL</td>
+                    {matrixThicknesses.map((t) => {
+                      const colTotal = matrixSizes.reduce((s, size) => s + Math.max(0, matrixLookup[`${size}|${t}`] ?? 0), 0);
+                      return (
+                        <td key={t} className="table-td text-center text-blue-700">
+                          {colTotal > 0 ? colTotal.toFixed(3) : <span className="text-slate-300">—</span>}
+                        </td>
+                      );
+                    })}
+                    <td className="table-td text-right text-green-700">{matrixGrandTotal.toFixed(3)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

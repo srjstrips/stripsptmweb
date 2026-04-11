@@ -150,4 +150,45 @@ router.get('/report', async (req, res, next) => {
   }
 });
 
+// ── GET /api/stock/as-of?date=YYYY-MM-DD ──────────────────────
+// Stock position as of a given date = SUM(production) - SUM(dispatch) up to that date
+router.get('/as-of', async (req, res, next) => {
+  const { date } = req.query;
+  if (!date) {
+    return res.status(400).json({ success: false, message: 'date query param is required' });
+  }
+
+  try {
+    const result = await db(
+      `SELECT
+         COALESCE(p.size, d.size)             AS size,
+         COALESCE(p.thickness, d.thickness)   AS thickness,
+         ROUND(
+           COALESCE(p.total_prod, 0) - COALESCE(d.total_disp, 0),
+           3
+         )                                    AS total_tonnage
+       FROM (
+         SELECT size, thickness,
+           SUM(prime_tonnage + random_tonnage) AS total_prod
+         FROM production_entries
+         WHERE date <= $1
+         GROUP BY size, thickness
+       ) p
+       FULL OUTER JOIN (
+         SELECT size, thickness,
+           SUM(prime_tonnage + random_tonnage) AS total_disp
+         FROM dispatch_entries
+         WHERE date <= $1
+         GROUP BY size, thickness
+       ) d ON p.size = d.size AND p.thickness = d.thickness
+       ORDER BY COALESCE(p.size, d.size), COALESCE(p.thickness, d.thickness)`,
+      [date]
+    );
+
+    res.json({ success: true, date, data: result.rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

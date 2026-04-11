@@ -190,6 +190,12 @@ export const dispatchApi = {
     api.post<ImportResult>('/api/dispatch/import', { rows }),
 };
 
+export interface StockAsOfRow {
+  size: string;
+  thickness: string;
+  total_tonnage: number;
+}
+
 export const stockApi = {
   get: (params?: Record<string, string>) =>
     api.get<{ success: boolean; data: RackStock[]; totals: StockTotals; summary: StockSummaryRow[] }>(
@@ -202,4 +208,8 @@ export const stockApi = {
       dispatch: StockSummaryRow[];
       scrap: { total_scrap: number; total_slit_wastage: number };
     }>('/api/stock/report', { params }),
+  asOf: (date: string) =>
+    api.get<{ success: boolean; date: string; data: StockAsOfRow[] }>(
+      '/api/stock/as-of', { params: { date } }
+    ),
 };
