@@ -11,7 +11,7 @@ const productionValidation = [
   body('size').notEmpty().withMessage('Size is required'),
   body('thickness').notEmpty().withMessage('Thickness is required'),
   body('length').notEmpty().withMessage('Length is required'),
-  body('shift').isIn(['Day', 'Night']).withMessage('Shift must be Day or Night'),
+  body('shift').isIn(['Shift A', 'Shift B']).withMessage('Shift must be Shift A or Shift B'),
   body('mill_no').isIn(['Mill1', 'Mill2', 'Mill3', 'Mill4']).withMessage('Mill No must be Mill1–Mill4'),
   // Prime
   body('prime_tonnage').isFloat({ min: 0 }).withMessage('Prime tonnage must be >= 0'),
@@ -422,9 +422,9 @@ router.post('/import', async (req, res, next) => {
         results.errors.push({ row: rowNum, message: `Missing required fields: ${missing.join(', ')}` });
         continue;
       }
-      if (!['Day', 'Night'].includes(row.shift)) {
+      if (!['Shift A', 'Shift B'].includes(row.shift)) {
         results.error_count++;
-        results.errors.push({ row: rowNum, message: 'shift must be Day or Night' });
+        results.errors.push({ row: rowNum, message: 'shift must be Shift A or Shift B' });
         continue;
       }
       if (!['Mill1', 'Mill2', 'Mill3', 'Mill4'].includes(row.mill_no)) {

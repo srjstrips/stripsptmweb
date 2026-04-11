@@ -28,7 +28,7 @@ export interface ProductionEntry {
   length: string;
   od: string | null;
   // Operational
-  shift: 'Day' | 'Night' | null;
+  shift: 'Shift A' | 'Shift B' | null;
   mill_no: 'Mill1' | 'Mill2' | 'Mill3' | 'Mill4' | null;
   weight_per_pipe: number | null;
   stamp: string | null;

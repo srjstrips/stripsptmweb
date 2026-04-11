@@ -13,7 +13,7 @@ import { productionApi, racksApi, ProductionEntry, MillSummaryRow, Rack } from '
 import CsvImportModal from '@/components/CsvImportModal';
 import { PIPE_SIZES, PIPE_THICKNESSES, STANDARD_LENGTH } from '@/lib/constants';
 
-const SHIFTS = ['Day', 'Night'] as const;
+const SHIFTS = ['Shift A', 'Shift B'] as const;
 const MILLS  = ['Mill1', 'Mill2', 'Mill3', 'Mill4'] as const;
 
 const EMPTY_FORM = {
@@ -151,7 +151,7 @@ export default function ProductionPage() {
 
   const buildPayload = () => ({
     date:               form.date,
-    shift:              form.shift as 'Day' | 'Night',
+    shift:              form.shift as 'Shift A' | 'Shift B',
     mill_no:            form.mill_no as 'Mill1' | 'Mill2' | 'Mill3' | 'Mill4',
     size:               form.size,
     thickness:          form.thickness,
@@ -669,7 +669,7 @@ export default function ProductionPage() {
                       <td className="table-td whitespace-nowrap">{format(new Date(e.date), 'dd MMM yyyy')}</td>
                       <td className="table-td">
                         <span className={`text-xs rounded px-1.5 py-0.5 font-medium ${
-                          e.shift === 'Day' ? 'bg-yellow-100 text-yellow-700' : 'bg-indigo-100 text-indigo-700'
+                          e.shift === 'Shift A' ? 'bg-yellow-100 text-yellow-700' : 'bg-indigo-100 text-indigo-700'
                         }`}>{e.shift ?? '—'}</span>
                       </td>
                       <td className="table-td">

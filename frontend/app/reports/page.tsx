@@ -5,6 +5,8 @@ import toast from 'react-hot-toast';
 import { BarChart3, Download, Search, Trash2 } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import PageHeader from '@/components/PageHeader';
 import StatCard from '@/components/StatCard';
 import Spinner from '@/components/Spinner';
@@ -90,6 +92,75 @@ export default function ReportsPage() {
     scrap: parseFloat(String(report.scrap?.total_scrap ?? 0)),
     slit:  parseFloat(String(report.scrap?.total_slit_wastage ?? 0)),
   } : null;
+
+  const exportMatrixExcel = () => {
+    if (!matrixData.length) return;
+    const header = ['Size', ...matrixThicknesses.map((t) => `${t} mm`), 'Total MT'];
+    const dataRows = matrixSizes.map((size) => {
+      const rowTotal = matrixThicknesses.reduce((s, t) => s + Math.max(0, matrixLookup[`${size}|${t}`] ?? 0), 0);
+      return [
+        size,
+        ...matrixThicknesses.map((t) => {
+          const v = matrixLookup[`${size}|${t}`] ?? null;
+          return v !== null && v > 0 ? v : '';
+        }),
+        rowTotal > 0 ? rowTotal : '',
+      ];
+    });
+    const totalRow = [
+      'TOTAL',
+      ...matrixThicknesses.map((t) =>
+        matrixSizes.reduce((s, size) => s + Math.max(0, matrixLookup[`${size}|${t}`] ?? 0), 0)
+      ),
+      matrixGrandTotal,
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows, totalRow]);
+    ws['!cols'] = header.map(() => ({ wch: 12 }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Stock Matrix');
+    XLSX.writeFile(wb, `stock_matrix_${matrixDate}.xlsx`);
+  };
+
+  const exportMatrixPDF = () => {
+    if (!matrixData.length) return;
+    const doc = new jsPDF({ orientation: matrixThicknesses.length > 8 ? 'landscape' : 'portrait' });
+    doc.setFontSize(13);
+    doc.text('Stock Matrix — Size × Thickness (MT)', 14, 15);
+    doc.setFontSize(9);
+    doc.text(`As of ${format(new Date(matrixDate + 'T00:00:00'), 'dd MMM yyyy')}   |   Grand Total: ${matrixGrandTotal.toFixed(3)} MT`, 14, 22);
+
+    const head = [['Size', ...matrixThicknesses.map((t) => `${t}mm`), 'Total']];
+    const body = matrixSizes.map((size) => {
+      const rowTotal = matrixThicknesses.reduce((s, t) => s + Math.max(0, matrixLookup[`${size}|${t}`] ?? 0), 0);
+      return [
+        size,
+        ...matrixThicknesses.map((t) => {
+          const v = matrixLookup[`${size}|${t}`] ?? null;
+          return v !== null && v > 0 ? v.toFixed(3) : '—';
+        }),
+        rowTotal > 0 ? rowTotal.toFixed(3) : '—',
+      ];
+    });
+    const foot = [[
+      'TOTAL',
+      ...matrixThicknesses.map((t) =>
+        matrixSizes.reduce((s, size) => s + Math.max(0, matrixLookup[`${size}|${t}`] ?? 0), 0).toFixed(3)
+      ),
+      matrixGrandTotal.toFixed(3),
+    ]];
+
+    autoTable(doc, {
+      head, body, foot,
+      startY: 27,
+      styles: { fontSize: 7, cellPadding: 2 },
+      headStyles: { fillColor: [59, 130, 246], textColor: 255, fontStyle: 'bold' },
+      footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' },
+      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 22 } },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+    });
+
+    doc.save(`stock_matrix_${matrixDate}.pdf`);
+  };
 
   const loadMatrix = useCallback(async () => {
     setMatrixLoading(true);
@@ -415,6 +486,16 @@ export default function ReportsPage() {
                 {matrixLoading ? <Spinner size={15} /> : <Search size={15} />}
                 {matrixLoading ? 'Loading…' : 'Show Stock'}
               </button>
+              {matrixData.length > 0 && (
+                <>
+                  <button className="btn-secondary mb-0.5" onClick={exportMatrixExcel}>
+                    <Download size={14} /> Excel
+                  </button>
+                  <button className="btn-secondary mb-0.5" onClick={exportMatrixPDF}>
+                    <Download size={14} /> PDF
+                  </button>
+                </>
+              )}
               <p className="text-xs text-slate-400 mb-1 self-end">
                 Production − Dispatch up to and including this date.
               </p>
