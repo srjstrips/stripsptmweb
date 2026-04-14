@@ -9,7 +9,7 @@ import PageHeader from '@/components/PageHeader';
 import StatCard from '@/components/StatCard';
 import EmptyState from '@/components/EmptyState';
 import Spinner from '@/components/Spinner';
-import { productionApi, racksApi, ProductionEntry, MillSummaryRow, Rack } from '@/lib/api';
+import { productionApi, ProductionEntry, MillSummaryRow } from '@/lib/api';
 import CsvImportModal from '@/components/CsvImportModal';
 import { PIPE_SIZES, PIPE_THICKNESSES, STANDARD_LENGTH } from '@/lib/constants';
 
@@ -48,8 +48,6 @@ const EMPTY_FORM = {
   scrap_burning_kg:   '',
   // Quality
   rejection_percent:  '',
-  // Optional
-  rack_id:            '',
 };
 
 type FormState = typeof EMPTY_FORM;
@@ -59,7 +57,6 @@ function i(v: string) { return parseInt(v  || '0', 10) || 0; }
 
 export default function ProductionPage() {
   const [entries, setEntries]       = useState<ProductionEntry[]>([]);
-  const [racks, setRacks]           = useState<Rack[]>([]);
   const [millSummary, setMillSummary] = useState<MillSummaryRow[]>([]);
   const [loading, setLoading]       = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -104,7 +101,6 @@ export default function ProductionPage() {
 
   useEffect(() => {
     loadEntries();
-    racksApi.list().then((r) => setRacks(r.data.data)).catch(() => {});
   }, [loadEntries]);
 
   useEffect(() => {
@@ -172,7 +168,6 @@ export default function ProductionPage() {
     scrap_bitcut_kg:    scrapEnteredForShift ? 0 : n(form.scrap_bitcut_kg),
     scrap_burning_kg:   scrapEnteredForShift ? 0 : n(form.scrap_burning_kg),
     rejection_percent:  n(form.rejection_percent),
-    rack_id:            form.rack_id || undefined,
   });
 
   const handleSubmit = async (e: FormEvent) => {
@@ -228,7 +223,6 @@ export default function ProductionPage() {
       scrap_bitcut_kg:    String(entry.scrap_bitcut_kg ?? ''),
       scrap_burning_kg:   String(entry.scrap_burning_kg ?? ''),
       rejection_percent:  String(entry.rejection_percent ?? ''),
-      rack_id:            entry.rack_id ?? '',
     });
     setEditingId(entry.id);
     setShowForm(true);
@@ -269,7 +263,6 @@ export default function ProductionPage() {
       'Burning Scrap (kg)': e.scrap_burning_kg,
       'Total Scrap (kg)': e.total_scrap_kg,
       'Rejection %': e.rejection_percent,
-      Rack: e.rack_name,
     })));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Production');
@@ -533,21 +526,6 @@ export default function ProductionPage() {
               </div>
             </div>
 
-            {/* Optional: Rack */}
-            <div className="p-3 bg-slate-50 rounded-lg">
-              <p className="text-xs font-bold text-slate-600 mb-3 uppercase tracking-wide">Storage (Optional)</p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div>
-                  <label className="form-label">Rack</label>
-                  <select className="form-select" value={form.rack_id} onChange={field('rack_id')}>
-                    <option value="">No rack</option>
-                    {racks.map((r) => (
-                      <option key={r.id} value={r.id}>{r.rack_name} — {r.location}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
 
             <div className="flex gap-3 pt-1">
               <button type="submit" disabled={submitting} className="btn-primary">

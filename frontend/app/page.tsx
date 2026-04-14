@@ -5,13 +5,13 @@ import { Factory, Truck, Package, AlertTriangle, TrendingUp, Layers } from 'luci
 import StatCard from '@/components/StatCard';
 import PageHeader from '@/components/PageHeader';
 import Spinner from '@/components/Spinner';
-import { stockApi, productionApi, dispatchApi, StockTotals, RackStock } from '@/lib/api';
+import { stockApi, productionApi, dispatchApi, StockTotals, StockSummaryRow } from '@/lib/api';
 import Link from 'next/link';
 import { format } from 'date-fns';
 
 interface DashboardData {
   totals: StockTotals;
-  topRacks: RackStock[];
+  topStock: StockSummaryRow[];
   recentProduction: number;
   recentDispatch: number;
 }
@@ -32,15 +32,16 @@ export default function Dashboard() {
           dispatchApi.list({ date_from: monthStart, date_to: today, limit: 1 }),
         ]);
 
-        const allStock = stockRes.data.data;
-        // Top 5 racks by total tonnage
-        const topRacks = [...allStock]
-          .sort((a, b) => b.total_tonnage - a.total_tonnage)
+        const topStock = [...stockRes.data.summary]
+          .sort((a, b) =>
+            (parseFloat(String(b.prime_tonnage)) + parseFloat(String(b.random_tonnage))) -
+            (parseFloat(String(a.prime_tonnage)) + parseFloat(String(a.random_tonnage)))
+          )
           .slice(0, 5);
 
         setData({
           totals: stockRes.data.totals,
-          topRacks,
+          topStock,
           recentProduction: prodRes.data.pagination.total,
           recentDispatch: dispRes.data.pagination.total,
         });
@@ -120,13 +121,13 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Top Racks Table */}
+      {/* Top Stock Table */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-slate-700">Top Stock by Rack</h2>
+          <h2 className="font-semibold text-slate-700">Top Stock by Tonnage</h2>
           <Link href="/stock" className="text-xs text-blue-600 hover:underline">View all →</Link>
         </div>
-        {data?.topRacks.length === 0 ? (
+        {data?.topStock.length === 0 ? (
           <div className="flex items-center gap-2 py-6 text-slate-400 text-sm justify-center">
             <AlertTriangle size={16} /> No stock data yet
           </div>
@@ -135,7 +136,6 @@ export default function Dashboard() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100">
-                  <th className="table-th">Rack</th>
                   <th className="table-th">Size</th>
                   <th className="table-th">Thickness</th>
                   <th className="table-th text-right">Prime MT</th>
@@ -144,10 +144,9 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {data?.topRacks.map((row) => (
-                  <tr key={row.id} className="border-b border-slate-50 hover:bg-slate-50">
-                    <td className="table-td font-medium">{row.rack_name}</td>
-                    <td className="table-td">{row.size}</td>
+                {data?.topStock.map((row, idx) => (
+                  <tr key={idx} className="border-b border-slate-50 hover:bg-slate-50">
+                    <td className="table-td font-medium">{row.size}</td>
                     <td className="table-td">{row.thickness}</td>
                     <td className="table-td text-right text-blue-700">
                       {parseFloat(String(row.prime_tonnage)).toFixed(3)}
@@ -156,7 +155,7 @@ export default function Dashboard() {
                       {parseFloat(String(row.random_tonnage)).toFixed(3)}
                     </td>
                     <td className="table-td text-right font-semibold">
-                      {parseFloat(String(row.total_tonnage)).toFixed(3)}
+                      {(parseFloat(String(row.prime_tonnage)) + parseFloat(String(row.random_tonnage))).toFixed(3)}
                     </td>
                   </tr>
                 ))}

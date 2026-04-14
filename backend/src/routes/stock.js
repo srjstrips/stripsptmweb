@@ -3,96 +3,71 @@ const { query: db } = require('../db');
 
 const router = express.Router();
 
+// ── Shared helper: current stock = production - dispatch ───────
+const STOCK_QUERY = `
+  SELECT
+    COALESCE(p.size, d.size)                                              AS size,
+    COALESCE(p.thickness, d.thickness)                                    AS thickness,
+    ROUND(GREATEST(0, COALESCE(p.prime_tonnage,  0) - COALESCE(d.prime_tonnage,  0)), 3) AS prime_tonnage,
+    GREATEST(0, COALESCE(p.prime_pieces,   0) - COALESCE(d.prime_pieces,   0))           AS prime_pieces,
+    ROUND(GREATEST(0, COALESCE(p.random_tonnage, 0) - COALESCE(d.random_tonnage, 0)), 3) AS random_tonnage,
+    GREATEST(0, COALESCE(p.random_pieces,  0) - COALESCE(d.random_pieces,  0))           AS random_pieces,
+    ROUND(GREATEST(0,
+      COALESCE(p.prime_tonnage, 0) + COALESCE(p.random_tonnage, 0)
+      - COALESCE(d.prime_tonnage, 0) - COALESCE(d.random_tonnage, 0)
+    ), 3) AS total_tonnage
+  FROM (
+    SELECT size, thickness,
+      SUM(prime_tonnage)  AS prime_tonnage,
+      SUM(prime_pieces)   AS prime_pieces,
+      SUM(random_tonnage) AS random_tonnage,
+      SUM(random_pipes)   AS random_pieces
+    FROM production_entries
+    GROUP BY size, thickness
+  ) p
+  FULL OUTER JOIN (
+    SELECT size, thickness,
+      SUM(prime_tonnage)  AS prime_tonnage,
+      SUM(prime_pieces)   AS prime_pieces,
+      SUM(random_tonnage) AS random_tonnage,
+      SUM(random_pieces)  AS random_pieces
+    FROM dispatch_entries
+    GROUP BY size, thickness
+  ) d ON p.size = d.size AND p.thickness = d.thickness
+  ORDER BY COALESCE(p.size, d.size), COALESCE(p.thickness, d.thickness)
+`;
+
 // ── GET /api/stock ─────────────────────────────────────────────
-// Returns per-rack stock breakdown + aggregate totals
+// Current live stock = production - dispatch, grouped by size + thickness
 router.get('/', async (req, res, next) => {
-  const { size, thickness, rack_id } = req.query;
-
-  const conditions = [];
-  const params = [];
-  let pi = 1;
-
-  if (size) {
-    conditions.push(`rs.size ILIKE $${pi++}`);
-    params.push(`%${size}%`);
-  }
-  if (thickness) {
-    conditions.push(`rs.thickness ILIKE $${pi++}`);
-    params.push(`%${thickness}%`);
-  }
-  if (rack_id) {
-    conditions.push(`rs.rack_id = $${pi++}`);
-    params.push(rack_id);
-  }
-
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const { size, thickness } = req.query;
 
   try {
-    // Per-rack stock rows
-    const stockResult = await db(
-      `SELECT
-         rs.id,
-         rs.rack_id,
-         r.rack_name,
-         r.location,
-         rs.size,
-         rs.thickness,
-         rs.prime_tonnage,
-         rs.prime_pieces,
-         rs.random_tonnage,
-         rs.random_pieces,
-         (rs.prime_tonnage + rs.random_tonnage) AS total_tonnage,
-         (rs.prime_pieces  + rs.random_pieces)  AS total_pieces,
-         rs.updated_at
-       FROM rack_stock rs
-       JOIN racks r ON r.id = rs.rack_id
-       ${where}
-       ORDER BY r.rack_name, rs.size, rs.thickness`,
-      params
+    const result = await db(STOCK_QUERY, []);
+
+    let rows = result.rows;
+    if (size)      rows = rows.filter((r) => r.size.toLowerCase().includes(size.toLowerCase()));
+    if (thickness) rows = rows.filter((r) => r.thickness.toLowerCase().includes(thickness.toLowerCase()));
+
+    const totals = rows.reduce(
+      (acc, r) => ({
+        total_prime_tonnage:  acc.total_prime_tonnage  + parseFloat(r.prime_tonnage),
+        total_prime_pieces:   acc.total_prime_pieces   + parseInt(r.prime_pieces,   10),
+        total_random_tonnage: acc.total_random_tonnage + parseFloat(r.random_tonnage),
+        total_random_pieces:  acc.total_random_pieces  + parseInt(r.random_pieces,  10),
+        grand_total_tonnage:  acc.grand_total_tonnage  + parseFloat(r.total_tonnage),
+        grand_total_pieces:   acc.grand_total_pieces   + parseInt(r.prime_pieces, 10) + parseInt(r.random_pieces, 10),
+      }),
+      { total_prime_tonnage: 0, total_prime_pieces: 0, total_random_tonnage: 0, total_random_pieces: 0, grand_total_tonnage: 0, grand_total_pieces: 0 }
     );
 
-    // Aggregate totals (same filters, no per-rack breakdown)
-    const totalResult = await db(
-      `SELECT
-         COALESCE(SUM(rs.prime_tonnage),  0) AS total_prime_tonnage,
-         COALESCE(SUM(rs.prime_pieces),   0) AS total_prime_pieces,
-         COALESCE(SUM(rs.random_tonnage), 0) AS total_random_tonnage,
-         COALESCE(SUM(rs.random_pieces),  0) AS total_random_pieces,
-         COALESCE(SUM(rs.prime_tonnage + rs.random_tonnage), 0) AS grand_total_tonnage,
-         COALESCE(SUM(rs.prime_pieces  + rs.random_pieces),  0) AS grand_total_pieces
-       FROM rack_stock rs
-       JOIN racks r ON r.id = rs.rack_id
-       ${where}`,
-      params
-    );
-
-    // Size-wise summary (ignoring rack filter for the summary)
-    const summaryResult = await db(
-      `SELECT
-         rs.size,
-         rs.thickness,
-         COALESCE(SUM(rs.prime_tonnage),  0) AS prime_tonnage,
-         COALESCE(SUM(rs.prime_pieces),   0) AS prime_pieces,
-         COALESCE(SUM(rs.random_tonnage), 0) AS random_tonnage,
-         COALESCE(SUM(rs.random_pieces),  0) AS random_pieces
-       FROM rack_stock rs
-       GROUP BY rs.size, rs.thickness
-       ORDER BY rs.size, rs.thickness`
-    );
-
-    res.json({
-      success: true,
-      data: stockResult.rows,
-      totals: totalResult.rows[0],
-      summary: summaryResult.rows,
-    });
+    res.json({ success: true, summary: rows, totals });
   } catch (err) {
     next(err);
   }
 });
 
 // ── GET /api/stock/report ──────────────────────────────────────
-// Production vs Dispatch comparison report
 router.get('/report', async (req, res, next) => {
   const { date_from, date_to } = req.query;
   const conditions = [];
@@ -109,12 +84,12 @@ router.get('/report', async (req, res, next) => {
       db(
         `SELECT
            size, thickness,
-           SUM(prime_tonnage)         AS prime_tonnage,
-           SUM(prime_pieces)          AS prime_pieces,
-           SUM(random_joint_tonnage + random_cq_tonnage + random_open_tonnage) AS random_tonnage,
-           SUM(random_joint_pieces  + random_cq_pieces  + random_open_pieces)  AS random_pieces,
-           SUM(scrap_tonnage)         AS scrap_tonnage,
-           SUM(slit_wastage)          AS slit_wastage
+           SUM(prime_tonnage)   AS prime_tonnage,
+           SUM(prime_pieces)    AS prime_pieces,
+           SUM(random_tonnage)  AS random_tonnage,
+           SUM(random_pipes)    AS random_pieces,
+           ROUND(SUM(total_scrap_kg) / 1000, 3) AS scrap_tonnage,
+           0                    AS slit_wastage
          FROM production_entries ${where}
          GROUP BY size, thickness ORDER BY size`,
         params
@@ -132,26 +107,20 @@ router.get('/report', async (req, res, next) => {
       ),
       db(
         `SELECT
-           SUM(scrap_tonnage) AS total_scrap,
-           SUM(slit_wastage)  AS total_slit_wastage
+           ROUND(SUM(total_scrap_kg) / 1000, 3) AS total_scrap,
+           0 AS total_slit_wastage
          FROM production_entries ${where}`,
         params
       ),
     ]);
 
-    res.json({
-      success: true,
-      production: prod.rows,
-      dispatch: disp.rows,
-      scrap: scrap.rows[0],
-    });
+    res.json({ success: true, production: prod.rows, dispatch: disp.rows, scrap: scrap.rows[0] });
   } catch (err) {
     next(err);
   }
 });
 
 // ── GET /api/stock/as-of?date=YYYY-MM-DD ──────────────────────
-// Stock position as of a given date = SUM(production) - SUM(dispatch) up to that date
 router.get('/as-of', async (req, res, next) => {
   const { date } = req.query;
   if (!date) {
@@ -161,24 +130,17 @@ router.get('/as-of', async (req, res, next) => {
   try {
     const result = await db(
       `SELECT
-         COALESCE(p.size, d.size)             AS size,
-         COALESCE(p.thickness, d.thickness)   AS thickness,
-         ROUND(
-           COALESCE(p.total_prod, 0) - COALESCE(d.total_disp, 0),
-           3
-         )                                    AS total_tonnage
+         COALESCE(p.size, d.size)           AS size,
+         COALESCE(p.thickness, d.thickness) AS thickness,
+         ROUND(COALESCE(p.total_prod, 0) - COALESCE(d.total_disp, 0), 3) AS total_tonnage
        FROM (
-         SELECT size, thickness,
-           SUM(prime_tonnage + random_tonnage) AS total_prod
-         FROM production_entries
-         WHERE date <= $1
+         SELECT size, thickness, SUM(prime_tonnage + random_tonnage) AS total_prod
+         FROM production_entries WHERE date <= $1
          GROUP BY size, thickness
        ) p
        FULL OUTER JOIN (
-         SELECT size, thickness,
-           SUM(prime_tonnage + random_tonnage) AS total_disp
-         FROM dispatch_entries
-         WHERE date <= $1
+         SELECT size, thickness, SUM(prime_tonnage + random_tonnage) AS total_disp
+         FROM dispatch_entries WHERE date <= $1
          GROUP BY size, thickness
        ) d ON p.size = d.size AND p.thickness = d.thickness
        ORDER BY COALESCE(p.size, d.size), COALESCE(p.thickness, d.thickness)`,

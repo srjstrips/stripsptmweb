@@ -349,7 +349,6 @@ export default function ReportsPage() {
                     <th className="table-th">Size</th>
                     <th className="table-th">Thickness</th>
                     <th className="table-th">Length</th>
-                    <th className="table-th">Rack</th>
                     <th className="table-th text-right">Prime MT</th>
                     <th className="table-th text-right">Prime Pcs</th>
                     <th className="table-th text-right">Rnd MT</th>
@@ -363,7 +362,6 @@ export default function ReportsPage() {
                       <td className="table-td font-medium">{e.size}</td>
                       <td className="table-td">{e.thickness}</td>
                       <td className="table-td">{e.length}</td>
-                      <td className="table-td"><span className="text-xs bg-slate-100 rounded px-1.5 py-0.5">{e.rack_name}</span></td>
                       <td className="table-td text-right text-blue-700">{parseFloat(String(e.prime_tonnage)).toFixed(3)}</td>
                       <td className="table-td text-right">{e.prime_pieces}</td>
                       <td className="table-td text-right text-amber-600">

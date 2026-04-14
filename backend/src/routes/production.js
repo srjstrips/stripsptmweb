@@ -33,7 +33,6 @@ const productionValidation = [
   body('rejection_percent').isFloat({ min: 0, max: 100 }).withMessage('Rejection % must be 0–100'),
   // Optional fields
   body('weight_per_pipe').optional().isFloat({ min: 0 }),
-  body('rack_id').optional(),
 ];
 
 // ── GET /api/production/mill-summary ─────────────────────────
@@ -114,9 +113,8 @@ router.get(
     try {
       const [dataResult, countResult] = await Promise.all([
         db(
-          `SELECT pe.*, r.rack_name
+          `SELECT *
            FROM production_entries pe
-           LEFT JOIN racks r ON r.id = pe.rack_id
            ${where}
            ORDER BY pe.date DESC, pe.created_at DESC
            LIMIT $${pi} OFFSET $${pi + 1}`,
@@ -162,8 +160,6 @@ router.post('/', productionValidation, validate, async (req, res, next) => {
     scrap_endcut_kg, scrap_bitcut_kg, scrap_burning_kg,
     // Quality
     rejection_percent,
-    // Optional
-    rack_id,
   } = req.body;
 
   // ── Calculations ──────────────────────────────────────────
@@ -185,11 +181,8 @@ router.post('/', productionValidation, validate, async (req, res, next) => {
   const total_tonnage   = _primeTonnage + random_tonnage;
   const total_scrap_kg  = _endcutKg     + _bitcutKg  + _burningKg;
 
-  const client = await getClient();
   try {
-    await client.query('BEGIN');
-
-    const insertResult = await client.query(
+    const result = await db(
       `INSERT INTO production_entries (
          date, size, thickness, length, od,
          shift, mill_no,
@@ -201,8 +194,7 @@ router.post('/', productionValidation, validate, async (req, res, next) => {
          random_pipes, random_tonnage,
          total_pipes, total_tonnage,
          scrap_endcut_kg, scrap_bitcut_kg, scrap_burning_kg, total_scrap_kg,
-         rejection_percent,
-         rack_id
+         rejection_percent
        ) VALUES (
          $1,$2,$3,$4,$5,
          $6,$7,
@@ -214,8 +206,7 @@ router.post('/', productionValidation, validate, async (req, res, next) => {
          $19,$20,
          $21,$22,
          $23,$24,$25,$26,
-         $27,
-         $28
+         $27
        ) RETURNING *`,
       [
         date, size, thickness, length, od || null,
@@ -229,33 +220,12 @@ router.post('/', productionValidation, validate, async (req, res, next) => {
         total_pipes, total_tonnage,
         _endcutKg, _bitcutKg, _burningKg, total_scrap_kg,
         parseFloat(rejection_percent || 0),
-        rack_id || null,
       ]
     );
 
-    // Update rack_stock if rack provided
-    if (rack_id) {
-      await client.query(
-        `INSERT INTO rack_stock (rack_id, size, thickness, prime_tonnage, prime_pieces, random_tonnage, random_pieces)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (rack_id, size, thickness)
-         DO UPDATE SET
-           prime_tonnage  = rack_stock.prime_tonnage  + EXCLUDED.prime_tonnage,
-           prime_pieces   = rack_stock.prime_pieces   + EXCLUDED.prime_pieces,
-           random_tonnage = rack_stock.random_tonnage + EXCLUDED.random_tonnage,
-           random_pieces  = rack_stock.random_pieces  + EXCLUDED.random_pieces,
-           updated_at     = NOW()`,
-        [rack_id, size, thickness, _primeTonnage, _primePieces, random_tonnage, random_pipes]
-      );
-    }
-
-    await client.query('COMMIT');
-    res.status(201).json({ success: true, data: insertResult.rows[0] });
+    res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err) {
-    await client.query('ROLLBACK');
     next(err);
-  } finally {
-    client.release();
   }
 });
 
@@ -271,7 +241,6 @@ router.put('/:id', productionValidation, validate, async (req, res, next) => {
     open_pipes, open_tonnage,
     scrap_endcut_kg, scrap_bitcut_kg, scrap_burning_kg,
     rejection_percent,
-    rack_id,
   } = req.body;
 
   const _primeTonnage  = parseFloat(prime_tonnage  || 0);
@@ -292,41 +261,8 @@ router.put('/:id', productionValidation, validate, async (req, res, next) => {
   const total_tonnage  = _primeTonnage + random_tonnage;
   const total_scrap_kg = _endcutKg     + _bitcutKg  + _burningKg;
 
-  const client = await getClient();
   try {
-    await client.query('BEGIN');
-
-    // Fetch old entry to reverse rack_stock
-    const oldRes = await client.query(
-      'SELECT * FROM production_entries WHERE id = $1',
-      [req.params.id]
-    );
-    if (oldRes.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ success: false, message: 'Entry not found' });
-    }
-    const old = oldRes.rows[0];
-
-    // Reverse old rack_stock contribution
-    if (old.rack_id) {
-      const oldRandom = parseFloat(old.random_tonnage || 0) ||
-        (parseFloat(old.random_joint_tonnage || 0) + parseFloat(old.random_cq_tonnage || 0) + parseFloat(old.random_open_tonnage || 0));
-      const oldRandomPieces = parseInt(old.random_pipes || 0, 10) ||
-        (parseInt(old.random_joint_pieces || 0, 10) + parseInt(old.random_cq_pieces || 0, 10) + parseInt(old.random_open_pieces || 0, 10));
-      await client.query(
-        `UPDATE rack_stock SET
-           prime_tonnage  = GREATEST(0, prime_tonnage  - $1),
-           prime_pieces   = GREATEST(0, prime_pieces   - $2),
-           random_tonnage = GREATEST(0, random_tonnage - $3),
-           random_pieces  = GREATEST(0, random_pieces  - $4),
-           updated_at     = NOW()
-         WHERE rack_id = $5 AND size = $6 AND thickness = $7`,
-        [old.prime_tonnage, old.prime_pieces, oldRandom, oldRandomPieces, old.rack_id, old.size, old.thickness]
-      );
-    }
-
-    // Update the entry
-    const updateResult = await client.query(
+    const result = await db(
       `UPDATE production_entries SET
          date=$1, size=$2, thickness=$3, length=$4, od=$5,
          shift=$6, mill_no=$7,
@@ -338,9 +274,8 @@ router.put('/:id', productionValidation, validate, async (req, res, next) => {
          random_pipes=$19, random_tonnage=$20,
          total_pipes=$21, total_tonnage=$22,
          scrap_endcut_kg=$23, scrap_bitcut_kg=$24, scrap_burning_kg=$25, total_scrap_kg=$26,
-         rejection_percent=$27,
-         rack_id=$28
-       WHERE id=$29
+         rejection_percent=$27
+       WHERE id=$28
        RETURNING *`,
       [
         date, size, thickness, length, od || null,
@@ -354,40 +289,22 @@ router.put('/:id', productionValidation, validate, async (req, res, next) => {
         total_pipes, total_tonnage,
         _endcutKg, _bitcutKg, _burningKg, total_scrap_kg,
         parseFloat(rejection_percent || 0),
-        rack_id || null,
         req.params.id,
       ]
     );
 
-    // Apply new rack_stock contribution
-    const newRackId = rack_id || null;
-    if (newRackId) {
-      await client.query(
-        `INSERT INTO rack_stock (rack_id, size, thickness, prime_tonnage, prime_pieces, random_tonnage, random_pieces)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (rack_id, size, thickness)
-         DO UPDATE SET
-           prime_tonnage  = rack_stock.prime_tonnage  + EXCLUDED.prime_tonnage,
-           prime_pieces   = rack_stock.prime_pieces   + EXCLUDED.prime_pieces,
-           random_tonnage = rack_stock.random_tonnage + EXCLUDED.random_tonnage,
-           random_pieces  = rack_stock.random_pieces  + EXCLUDED.random_pieces,
-           updated_at     = NOW()`,
-        [newRackId, size, thickness, _primeTonnage, _primePieces, random_tonnage, random_pipes]
-      );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Entry not found' });
     }
 
-    await client.query('COMMIT');
-    res.json({ success: true, data: updateResult.rows[0] });
+    res.json({ success: true, data: result.rows[0] });
   } catch (err) {
-    await client.query('ROLLBACK');
     next(err);
-  } finally {
-    client.release();
   }
 });
 
 // ── POST /api/production/import ───────────────────────────────
-// Bulk-insert historical production entries without touching rack_stock.
+// Bulk-insert historical production entries.
 router.post('/import', async (req, res, next) => {
   const { rows } = req.body;
 
@@ -465,8 +382,7 @@ router.post('/import', async (req, res, next) => {
              random_pipes, random_tonnage,
              total_pipes, total_tonnage,
              scrap_endcut_kg, scrap_bitcut_kg, scrap_burning_kg, total_scrap_kg,
-             rejection_percent,
-             rack_id
+             rejection_percent
            ) VALUES (
              $1,$2,$3,$4,$5,
              $6,$7,
@@ -478,8 +394,7 @@ router.post('/import', async (req, res, next) => {
              $19,$20,
              $21,$22,
              $23,$24,$25,$26,
-             $27,
-             $28
+             $27
            )`,
           [
             row.date, row.size, row.thickness, row.length, row.od || null,
@@ -495,7 +410,6 @@ router.post('/import', async (req, res, next) => {
             total_pipes, total_tonnage,
             _endcutKg, _bitcutKg, _burningKg, total_scrap_kg,
             parseFloat(row.rejection_percent || 0),
-            row.rack_id || null,
           ]
         );
         await client.query('RELEASE SAVEPOINT row_save');
@@ -519,47 +433,17 @@ router.post('/import', async (req, res, next) => {
 
 // ── DELETE /api/production/:id ────────────────────────────────
 router.delete('/:id', async (req, res, next) => {
-  const client = await getClient();
   try {
-    await client.query('BEGIN');
-
-    const entryRes = await client.query(
-      'SELECT * FROM production_entries WHERE id = $1',
+    const result = await db(
+      'DELETE FROM production_entries WHERE id = $1 RETURNING id',
       [req.params.id]
     );
-    if (entryRes.rows.length === 0) {
-      await client.query('ROLLBACK');
+    if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Entry not found' });
     }
-
-    const e = entryRes.rows[0];
-
-    if (e.rack_id) {
-      const randomTonnage = parseFloat(e.random_tonnage || 0) ||
-        (parseFloat(e.random_joint_tonnage || 0) + parseFloat(e.random_cq_tonnage || 0) + parseFloat(e.random_open_tonnage || 0));
-      const randomPieces = parseInt(e.random_pipes || 0, 10) ||
-        (parseInt(e.random_joint_pieces || 0, 10) + parseInt(e.random_cq_pieces || 0, 10) + parseInt(e.random_open_pieces || 0, 10));
-
-      await client.query(
-        `UPDATE rack_stock SET
-           prime_tonnage  = GREATEST(0, prime_tonnage  - $1),
-           prime_pieces   = GREATEST(0, prime_pieces   - $2),
-           random_tonnage = GREATEST(0, random_tonnage - $3),
-           random_pieces  = GREATEST(0, random_pieces  - $4),
-           updated_at     = NOW()
-         WHERE rack_id = $5 AND size = $6 AND thickness = $7`,
-        [e.prime_tonnage, e.prime_pieces, randomTonnage, randomPieces, e.rack_id, e.size, e.thickness]
-      );
-    }
-
-    await client.query('DELETE FROM production_entries WHERE id = $1', [req.params.id]);
-    await client.query('COMMIT');
     res.json({ success: true, message: 'Production entry deleted' });
   } catch (err) {
-    await client.query('ROLLBACK');
     next(err);
-  } finally {
-    client.release();
   }
 });
 

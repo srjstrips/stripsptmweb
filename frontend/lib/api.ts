@@ -10,16 +10,6 @@ export const api = axios.create({
 
 // ── Types ──────────────────────────────────────────────────────
 
-export interface Rack {
-  id: string;
-  rack_name: string;
-  location: string | null;
-  capacity: number;
-  total_prime_tonnage: number;
-  total_random_tonnage: number;
-  created_at: string;
-}
-
 export interface ProductionEntry {
   id: string;
   date: string;
@@ -57,9 +47,6 @@ export interface ProductionEntry {
   total_scrap_kg: number;
   // Quality
   rejection_percent: number;
-  // Storage (optional)
-  rack_id: string | null;
-  rack_name: string | null;
   created_at: string;
 }
 
@@ -97,22 +84,6 @@ export interface DispatchEntry {
   created_at: string;
 }
 
-export interface RackStock {
-  id: string;
-  rack_id: string;
-  rack_name: string;
-  location: string | null;
-  size: string;
-  thickness: string;
-  prime_tonnage: number;
-  prime_pieces: number;
-  random_tonnage: number;
-  random_pieces: number;
-  total_tonnage: number;
-  total_pieces: number;
-  updated_at: string;
-}
-
 export interface StockTotals {
   total_prime_tonnage: number;
   total_prime_pieces: number;
@@ -144,14 +115,6 @@ export interface Pagination {
 }
 
 // ── API helpers ────────────────────────────────────────────────
-
-export const racksApi = {
-  list: () => api.get<{ success: boolean; data: Rack[] }>('/api/racks'),
-  create: (data: Partial<Rack>) =>
-    api.post<{ success: boolean; data: Rack }>('/api/racks', data),
-  delete: (id: string) =>
-    api.delete<{ success: boolean; message: string }>(`/api/racks/${id}`),
-};
 
 export interface ImportResult {
   success: boolean;
@@ -198,7 +161,7 @@ export interface StockAsOfRow {
 
 export const stockApi = {
   get: (params?: Record<string, string>) =>
-    api.get<{ success: boolean; data: RackStock[]; totals: StockTotals; summary: StockSummaryRow[] }>(
+    api.get<{ success: boolean; totals: StockTotals; summary: StockSummaryRow[] }>(
       '/api/stock', { params }
     ),
   report: (params?: Record<string, string>) =>
