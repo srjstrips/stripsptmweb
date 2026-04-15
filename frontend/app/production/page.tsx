@@ -9,7 +9,7 @@ import PageHeader from '@/components/PageHeader';
 import StatCard from '@/components/StatCard';
 import EmptyState from '@/components/EmptyState';
 import Spinner from '@/components/Spinner';
-import { productionApi, ProductionEntry, MillSummaryRow } from '@/lib/api';
+import { productionApi, ProductionEntry, MillSummaryRow, EntryTotals } from '@/lib/api';
 import CsvImportModal from '@/components/CsvImportModal';
 import { PIPE_SIZES, PIPE_THICKNESSES, STANDARD_LENGTH } from '@/lib/constants';
 
@@ -70,6 +70,7 @@ export default function ProductionPage() {
   // null = new entry, uuid = editing existing
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [prodTotals, setProdTotals] = useState<EntryTotals | null>(null);
 
   const loadEntries = useCallback(async (page = 1) => {
     setLoading(true);
@@ -101,6 +102,7 @@ export default function ProductionPage() {
 
   useEffect(() => {
     loadEntries();
+    productionApi.totals().then((res) => setProdTotals(res.data)).catch(() => {});
   }, [loadEntries]);
 
   useEffect(() => {
@@ -269,15 +271,6 @@ export default function ProductionPage() {
     XLSX.writeFile(wb, `production_${format(new Date(), 'yyyyMMdd')}.xlsx`);
   };
 
-  const totals = entries.reduce(
-    (acc, e) => ({
-      total_tonnage: acc.total_tonnage + n(String(e.total_tonnage)),
-      total_pipes:   acc.total_pipes   + (e.total_pipes || 0),
-      total_scrap:   acc.total_scrap   + n(String(e.total_scrap_kg)),
-    }),
-    { total_tonnage: 0, total_pipes: 0, total_scrap: 0 }
-  );
-
   // Group mill summary by mill for display
   const millGroups = millSummary.reduce<Record<string, MillSummaryRow[]>>((acc, row) => {
     if (!acc[row.mill_no]) acc[row.mill_no] = [];
@@ -301,10 +294,34 @@ export default function ProductionPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Total MT (page)"   value={totals.total_tonnage.toFixed(3)} sub={`${totals.total_pipes} pipes`} icon={Factory} color="blue" />
-        <StatCard label="Total Scrap (kg)"  value={totals.total_scrap.toFixed(1)}   icon={Factory} color="red" />
-        <StatCard label="Total Records"     value={pagination.total}                 icon={Factory} color="slate" />
-        <StatCard label="Mills Active"      value={new Set(entries.map(e => e.mill_no).filter(Boolean)).size} icon={BarChart3} color="amber" />
+        <StatCard
+          label="Total Production (MT)"
+          value={parseFloat(String(prodTotals?.all_time?.total_mt ?? 0)).toFixed(3)}
+          sub="all time"
+          icon={Factory}
+          color="blue"
+        />
+        <StatCard
+          label="This Month Production (MT)"
+          value={parseFloat(String(prodTotals?.this_month?.total_mt ?? 0)).toFixed(3)}
+          sub={format(new Date(), 'MMM yyyy')}
+          icon={Factory}
+          color="green"
+        />
+        <StatCard
+          label="Prime Production (MT)"
+          value={parseFloat(String(prodTotals?.all_time?.prime_mt ?? 0)).toFixed(3)}
+          sub="all time"
+          icon={Factory}
+          color="slate"
+        />
+        <StatCard
+          label="Random Production (MT)"
+          value={parseFloat(String(prodTotals?.all_time?.random_mt ?? 0)).toFixed(3)}
+          sub="all time"
+          icon={BarChart3}
+          color="amber"
+        />
       </div>
 
       {/* ── Entry Form ──────────────────────────────────────── */}

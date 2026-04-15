@@ -9,7 +9,7 @@ import PageHeader from '@/components/PageHeader';
 import StatCard from '@/components/StatCard';
 import EmptyState from '@/components/EmptyState';
 import Spinner from '@/components/Spinner';
-import { dispatchApi, stockApi, DispatchEntry, StockSummaryRow } from '@/lib/api';
+import { dispatchApi, stockApi, DispatchEntry, StockSummaryRow, EntryTotals } from '@/lib/api';
 import CsvImportModal from '@/components/CsvImportModal';
 import { PIPE_SIZES, PIPE_THICKNESSES, STANDARD_LENGTH } from '@/lib/constants';
 
@@ -52,6 +52,7 @@ export default function DispatchPage() {
   const [availableStock, setAvailableStock] = useState<StockSummaryRow | null>(null);
   const [checkingStock, setCheckingStock]   = useState(false);
   const [showImport, setShowImport]         = useState(false);
+  const [dispTotals, setDispTotals]         = useState<EntryTotals | null>(null);
 
   const loadEntries = useCallback(async (page = 1) => {
     setLoading(true);
@@ -70,7 +71,10 @@ export default function DispatchPage() {
     }
   }, [filters]);
 
-  useEffect(() => { loadEntries(); }, [loadEntries]);
+  useEffect(() => {
+    loadEntries();
+    dispatchApi.totals().then((res) => setDispTotals(res.data)).catch(() => {});
+  }, [loadEntries]);
 
   // Live stock check whenever size + thickness change
   useEffect(() => {
@@ -112,7 +116,7 @@ export default function DispatchPage() {
         prime_tonnage:  parseFloat(form.prime_tonnage  || '0'),
         prime_pieces:   parseInt(form.prime_pieces     || '0', 10),
         random_tonnage: parseFloat(form.random_tonnage || '0'),
-        random_pieces:  parseInt(form.random_pieces    || '0', 10),
+        random_pieces:  0,
         pdi: form.pdi || null,
         supervisor: form.supervisor || null,
         delivery_location: form.delivery_location || null,
@@ -174,16 +178,6 @@ export default function DispatchPage() {
     XLSX.writeFile(wb, `dispatch_${format(new Date(), 'yyyyMMdd')}.xlsx`);
   };
 
-  const totals = entries.reduce(
-    (acc, e) => ({
-      prime_tonnage:  acc.prime_tonnage  + parseFloat(String(e.prime_tonnage)),
-      prime_pieces:   acc.prime_pieces   + e.prime_pieces,
-      random_tonnage: acc.random_tonnage + parseFloat(String(e.random_tonnage)),
-      random_pieces:  acc.random_pieces  + e.random_pieces,
-    }),
-    { prime_tonnage: 0, prime_pieces: 0, random_tonnage: 0, random_pieces: 0 }
-  );
-
   const field =
     (key: string) =>
     (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -218,10 +212,34 @@ export default function DispatchPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Prime MT (page)"     value={totals.prime_tonnage.toFixed(3)}  sub={`${totals.prime_pieces} pcs`}  icon={Truck} color="blue" />
-        <StatCard label="Random MT (page)"    value={totals.random_tonnage.toFixed(3)} sub={`${totals.random_pieces} pcs`} icon={Truck} color="amber" />
-        <StatCard label="Total Dispatched MT" value={(totals.prime_tonnage + totals.random_tonnage).toFixed(3)} sub="this page" icon={Truck} color="green" />
-        <StatCard label="Total Records"       value={pagination.total} icon={Truck} color="slate" />
+        <StatCard
+          label="Total Dispatch (MT)"
+          value={parseFloat(String(dispTotals?.all_time?.total_mt ?? 0)).toFixed(3)}
+          sub="all time"
+          icon={Truck}
+          color="blue"
+        />
+        <StatCard
+          label="This Month Dispatch (MT)"
+          value={parseFloat(String(dispTotals?.this_month?.total_mt ?? 0)).toFixed(3)}
+          sub={format(new Date(), 'MMM yyyy')}
+          icon={Truck}
+          color="green"
+        />
+        <StatCard
+          label="Prime Dispatch (MT)"
+          value={parseFloat(String(dispTotals?.all_time?.prime_mt ?? 0)).toFixed(3)}
+          sub="all time"
+          icon={Truck}
+          color="slate"
+        />
+        <StatCard
+          label="Random Dispatch (MT)"
+          value={parseFloat(String(dispTotals?.all_time?.random_mt ?? 0)).toFixed(3)}
+          sub="all time"
+          icon={Truck}
+          color="amber"
+        />
       </div>
 
       {/* ── Entry Form ─────────────────────────────────────────── */}
@@ -376,9 +394,8 @@ export default function DispatchPage() {
                   <label className="form-label">Tonnage (MT) *</label>
                   <input type="number" step="0.001" min="0" className="form-input" value={form.random_tonnage} onChange={field('random_tonnage')} required placeholder="0.000" />
                 </div>
-                <div>
-                  <label className="form-label">No. of Pipes {form.weight_per_pipe && <span className="text-amber-500 font-normal">(auto)</span>} *</label>
-                  <input type="number" min="0" className="form-input" value={form.random_pieces} onChange={field('random_pieces')} required placeholder="0" />
+                <div className="flex items-end">
+                  <p className="text-xs text-amber-600 italic">Random pipes are dispatched by tonnage only — pieces not required.</p>
                 </div>
               </div>
             </div>

@@ -107,6 +107,17 @@ export interface ReportProductionRow extends StockSummaryRow {
   slit_wastage: number;
 }
 
+export interface PeriodTotals {
+  total_mt: number;
+  prime_mt: number;
+  random_mt: number;
+}
+
+export interface EntryTotals {
+  all_time: PeriodTotals;
+  this_month: PeriodTotals;
+}
+
 export interface Pagination {
   page: number;
   limit: number;
@@ -136,6 +147,8 @@ export const productionApi = {
     api.delete<{ success: boolean; message: string }>(`/api/production/${id}`),
   millSummary: () =>
     api.get<{ success: boolean; data: MillSummaryRow[] }>('/api/production/mill-summary'),
+  totals: () =>
+    api.get<{ success: boolean } & EntryTotals>('/api/production/totals'),
   import: (rows: Record<string, string>[]) =>
     api.post<ImportResult>('/api/production/import', { rows }),
 };
@@ -149,6 +162,8 @@ export const dispatchApi = {
     api.post<{ success: boolean; data: DispatchEntry }>('/api/dispatch', data),
   delete: (id: string) =>
     api.delete<{ success: boolean; message: string }>(`/api/dispatch/${id}`),
+  totals: () =>
+    api.get<{ success: boolean } & EntryTotals>('/api/dispatch/totals'),
   import: (rows: Record<string, string>[]) =>
     api.post<ImportResult>('/api/dispatch/import', { rows }),
 };

@@ -9,13 +9,15 @@ import PageHeader from '@/components/PageHeader';
 import StatCard from '@/components/StatCard';
 import EmptyState from '@/components/EmptyState';
 import Spinner from '@/components/Spinner';
-import { stockApi, StockSummaryRow, StockTotals } from '@/lib/api';
+import { stockApi, productionApi, dispatchApi, StockSummaryRow, StockTotals, EntryTotals } from '@/lib/api';
 
 export default function StockPage() {
-  const [summary, setSummary] = useState<StockSummaryRow[]>([]);
-  const [totals, setTotals]   = useState<StockTotals | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ size: '', thickness: '' });
+  const [summary, setSummary]         = useState<StockSummaryRow[]>([]);
+  const [totals, setTotals]           = useState<StockTotals | null>(null);
+  const [prodTotals, setProdTotals]   = useState<EntryTotals | null>(null);
+  const [dispTotals, setDispTotals]   = useState<EntryTotals | null>(null);
+  const [loading, setLoading]         = useState(true);
+  const [filters, setFilters]         = useState({ size: '', thickness: '' });
 
   const loadStock = useCallback(async () => {
     setLoading(true);
@@ -23,9 +25,15 @@ export default function StockPage() {
       const params: Record<string, string> = {};
       if (filters.size)      params.size      = filters.size;
       if (filters.thickness) params.thickness = filters.thickness;
-      const res = await stockApi.get(params);
+      const [res, prodRes, dispRes] = await Promise.all([
+        stockApi.get(params),
+        productionApi.totals(),
+        dispatchApi.totals(),
+      ]);
       setSummary(res.data.summary);
       setTotals(res.data.totals);
+      setProdTotals(prodRes.data);
+      setDispTotals(dispRes.data);
     } catch {
       toast.error('Failed to load stock');
     } finally {
@@ -68,34 +76,27 @@ export default function StockPage() {
       />
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatCard
-          label="Prime Stock (MT)"
-          value={parseFloat(String(totals?.total_prime_tonnage ?? 0)).toFixed(3)}
-          sub={`${totals?.total_prime_pieces ?? 0} pieces`}
+          label="Total Production (MT)"
+          value={parseFloat(String(prodTotals?.all_time?.total_mt ?? 0)).toFixed(3)}
+          sub={`Prime ${parseFloat(String(prodTotals?.all_time?.prime_mt ?? 0)).toFixed(3)} · Random ${parseFloat(String(prodTotals?.all_time?.random_mt ?? 0)).toFixed(3)}`}
           icon={Package}
           color="blue"
         />
         <StatCard
-          label="Random Stock (MT)"
-          value={parseFloat(String(totals?.total_random_tonnage ?? 0)).toFixed(3)}
-          sub={`${totals?.total_random_pieces ?? 0} pieces`}
+          label="Total Dispatch (MT)"
+          value={parseFloat(String(dispTotals?.all_time?.total_mt ?? 0)).toFixed(3)}
+          sub={`Prime ${parseFloat(String(dispTotals?.all_time?.prime_mt ?? 0)).toFixed(3)} · Random ${parseFloat(String(dispTotals?.all_time?.random_mt ?? 0)).toFixed(3)}`}
           icon={Package}
           color="amber"
         />
         <StatCard
-          label="Grand Total (MT)"
+          label="Live Stock (MT)"
           value={parseFloat(String(totals?.grand_total_tonnage ?? 0)).toFixed(3)}
-          sub={`${totals?.grand_total_pieces ?? 0} pieces`}
+          sub={`${totals?.grand_total_pieces ?? 0} pieces · ${summary.length} size combinations`}
           icon={Package}
           color="green"
-        />
-        <StatCard
-          label="Size × Thickness"
-          value={summary.length}
-          sub="combinations in stock"
-          icon={Package}
-          color="slate"
         />
       </div>
 

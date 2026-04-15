@@ -35,6 +35,44 @@ const productionValidation = [
   body('weight_per_pipe').optional().isFloat({ min: 0 }),
 ];
 
+// ── GET /api/production/totals ───────────────────────────────
+router.get('/totals', async (req, res, next) => {
+  try {
+    const today = new Date();
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+      .toISOString().slice(0, 10);
+    const todayStr = today.toISOString().slice(0, 10);
+
+    const [allTime, thisMonth] = await Promise.all([
+      db(
+        `SELECT
+           COALESCE(SUM(total_tonnage), 0)  AS total_mt,
+           COALESCE(SUM(prime_tonnage), 0)  AS prime_mt,
+           COALESCE(SUM(random_tonnage), 0) AS random_mt
+         FROM production_entries`,
+        []
+      ),
+      db(
+        `SELECT
+           COALESCE(SUM(total_tonnage), 0)  AS total_mt,
+           COALESCE(SUM(prime_tonnage), 0)  AS prime_mt,
+           COALESCE(SUM(random_tonnage), 0) AS random_mt
+         FROM production_entries
+         WHERE date >= $1 AND date <= $2`,
+        [monthStart, todayStr]
+      ),
+    ]);
+
+    res.json({
+      success: true,
+      all_time:   allTime.rows[0],
+      this_month: thisMonth.rows[0],
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── GET /api/production/mill-summary ─────────────────────────
 router.get('/mill-summary', async (req, res, next) => {
   try {

@@ -1,19 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Factory, Truck, Package, AlertTriangle, TrendingUp, Layers } from 'lucide-react';
+import { Factory, Truck, Package, AlertTriangle, TrendingUp } from 'lucide-react';
 import StatCard from '@/components/StatCard';
 import PageHeader from '@/components/PageHeader';
 import Spinner from '@/components/Spinner';
-import { stockApi, productionApi, dispatchApi, StockTotals, StockSummaryRow } from '@/lib/api';
+import { stockApi, productionApi, dispatchApi, StockTotals, StockSummaryRow, PeriodTotals } from '@/lib/api';
 import Link from 'next/link';
 import { format } from 'date-fns';
 
 interface DashboardData {
-  totals: StockTotals;
+  stockTotals: StockTotals;
   topStock: StockSummaryRow[];
-  recentProduction: number;
-  recentDispatch: number;
+  prodThisMonth: PeriodTotals;
+  dispThisMonth: PeriodTotals;
 }
 
 export default function Dashboard() {
@@ -23,13 +23,10 @@ export default function Dashboard() {
   useEffect(() => {
     async function load() {
       try {
-        const today = format(new Date(), 'yyyy-MM-dd');
-        const monthStart = format(new Date(new Date().setDate(1)), 'yyyy-MM-dd');
-
-        const [stockRes, prodRes, dispRes] = await Promise.all([
+        const [stockRes, prodTotalsRes, dispTotalsRes] = await Promise.all([
           stockApi.get(),
-          productionApi.list({ date_from: monthStart, date_to: today, limit: 1 }),
-          dispatchApi.list({ date_from: monthStart, date_to: today, limit: 1 }),
+          productionApi.totals(),
+          dispatchApi.totals(),
         ]);
 
         const topStock = [...stockRes.data.summary]
@@ -40,10 +37,10 @@ export default function Dashboard() {
           .slice(0, 5);
 
         setData({
-          totals: stockRes.data.totals,
+          stockTotals: stockRes.data.totals,
           topStock,
-          recentProduction: prodRes.data.pagination.total,
-          recentDispatch: dispRes.data.pagination.total,
+          prodThisMonth: prodTotalsRes.data.this_month,
+          dispThisMonth: dispTotalsRes.data.this_month,
         });
       } catch (err) {
         console.error(err);
@@ -62,8 +59,6 @@ export default function Dashboard() {
     );
   }
 
-  const t = data?.totals;
-
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <PageHeader
@@ -72,34 +67,27 @@ export default function Dashboard() {
       />
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <StatCard
-          label="Prime Stock (MT)"
-          value={parseFloat(String(t?.total_prime_tonnage ?? 0)).toFixed(3)}
-          sub={`${t?.total_prime_pieces ?? 0} pieces`}
-          icon={Package}
+          label="This Month Production (MT)"
+          value={parseFloat(String(data?.prodThisMonth?.total_mt ?? 0)).toFixed(3)}
+          sub={`Prime ${parseFloat(String(data?.prodThisMonth?.prime_mt ?? 0)).toFixed(3)} · Random ${parseFloat(String(data?.prodThisMonth?.random_mt ?? 0)).toFixed(3)}`}
+          icon={Factory}
           color="blue"
         />
         <StatCard
-          label="Random Stock (MT)"
-          value={parseFloat(String(t?.total_random_tonnage ?? 0)).toFixed(3)}
-          sub={`${t?.total_random_pieces ?? 0} pieces`}
-          icon={Layers}
+          label="This Month Dispatch (MT)"
+          value={parseFloat(String(data?.dispThisMonth?.total_mt ?? 0)).toFixed(3)}
+          sub={`Prime ${parseFloat(String(data?.dispThisMonth?.prime_mt ?? 0)).toFixed(3)} · Random ${parseFloat(String(data?.dispThisMonth?.random_mt ?? 0)).toFixed(3)}`}
+          icon={Truck}
           color="amber"
         />
         <StatCard
-          label="Grand Total (MT)"
-          value={parseFloat(String(t?.grand_total_tonnage ?? 0)).toFixed(3)}
-          sub={`${t?.grand_total_pieces ?? 0} total pieces`}
+          label="Total Stock (MT)"
+          value={parseFloat(String(data?.stockTotals?.grand_total_tonnage ?? 0)).toFixed(3)}
+          sub={`${data?.stockTotals?.grand_total_pieces ?? 0} pieces in stock`}
           icon={TrendingUp}
           color="green"
-        />
-        <StatCard
-          label="This Month"
-          value={`${data?.recentProduction ?? 0} prod.`}
-          sub={`${data?.recentDispatch ?? 0} dispatch entries`}
-          icon={Factory}
-          color="slate"
         />
       </div>
 

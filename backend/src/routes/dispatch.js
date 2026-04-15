@@ -26,6 +26,44 @@ const dispatchValidation = [
   body('remark').optional({ nullable: true }).isString(),
 ];
 
+// ── GET /api/dispatch/totals ──────────────────────────────────
+router.get('/totals', async (req, res, next) => {
+  try {
+    const today = new Date();
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+      .toISOString().slice(0, 10);
+    const todayStr = today.toISOString().slice(0, 10);
+
+    const [allTime, thisMonth] = await Promise.all([
+      db(
+        `SELECT
+           COALESCE(SUM(prime_tonnage + random_tonnage), 0) AS total_mt,
+           COALESCE(SUM(prime_tonnage), 0)                 AS prime_mt,
+           COALESCE(SUM(random_tonnage), 0)                AS random_mt
+         FROM dispatch_entries`,
+        []
+      ),
+      db(
+        `SELECT
+           COALESCE(SUM(prime_tonnage + random_tonnage), 0) AS total_mt,
+           COALESCE(SUM(prime_tonnage), 0)                 AS prime_mt,
+           COALESCE(SUM(random_tonnage), 0)                AS random_mt
+         FROM dispatch_entries
+         WHERE date >= $1 AND date <= $2`,
+        [monthStart, todayStr]
+      ),
+    ]);
+
+    res.json({
+      success: true,
+      all_time:   allTime.rows[0],
+      this_month: thisMonth.rows[0],
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── GET /api/dispatch ─────────────────────────────────────────
 router.get(
   '/',
@@ -147,9 +185,6 @@ router.post('/', dispatchValidation, validate, async (req, res, next) => {
     }
     if (rt > parseFloat(stock.avail_random_tonnage)) {
       errors.push(`Insufficient random stock. Available: ${stock.avail_random_tonnage} MT, Requested: ${rt} MT`);
-    }
-    if (rp > parseInt(stock.avail_random_pieces, 10)) {
-      errors.push(`Insufficient random pieces. Available: ${stock.avail_random_pieces}, Requested: ${rp}`);
     }
 
     if (errors.length > 0) {
