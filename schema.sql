@@ -110,7 +110,7 @@ CREATE INDEX IF NOT EXISTS idx_rack_stock_size   ON rack_stock(size, thickness);
 
 -- Basic operational fields
 ALTER TABLE production_entries
-  ADD COLUMN IF NOT EXISTS shift               TEXT CHECK (shift IN ('Day', 'Night')),
+  ADD COLUMN IF NOT EXISTS shift               TEXT CHECK (shift IN ('Shift A', 'Shift B')),
   ADD COLUMN IF NOT EXISTS mill_no             TEXT CHECK (mill_no IN ('Mill1', 'Mill2', 'Mill3', 'Mill4')),
   ADD COLUMN IF NOT EXISTS weight_per_pipe     NUMERIC(10, 4),
   ADD COLUMN IF NOT EXISTS stamp               TEXT,

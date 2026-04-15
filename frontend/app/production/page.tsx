@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, ChangeEvent, FormEvent } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, Trash2, Factory, Filter, Download, BarChart3, Pencil, X, Upload } from 'lucide-react';
+import { Plus, Trash2, Factory, Filter, Download, BarChart3, Pencil, X, Upload, Table2 } from 'lucide-react';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import PageHeader from '@/components/PageHeader';
@@ -52,6 +52,25 @@ const EMPTY_FORM = {
 
 type FormState = typeof EMPTY_FORM;
 
+const EMPTY_BATCH_ROW = {
+  date:           format(new Date(), 'yyyy-MM-dd'),
+  shift:          '',
+  mill_no:        '',
+  size:           '',
+  thickness:      '',
+  length:         STANDARD_LENGTH,
+  weight_per_pipe:'',
+  prime_tonnage:  '',
+  prime_pieces:   '',
+  joint_pipes:    '',
+  joint_tonnage:  '',
+  cq_pipes:       '',
+  cq_tonnage:     '',
+  open_pipes:     '',
+  open_tonnage:   '',
+};
+type BatchRow = typeof EMPTY_BATCH_ROW;
+
 function n(v: string) { return parseFloat(v || '0') || 0; }
 function i(v: string) { return parseInt(v  || '0', 10) || 0; }
 
@@ -69,8 +88,11 @@ export default function ProductionPage() {
   const [scrapEnteredForShift, setScrapEnteredForShift] = useState(false);
   // null = new entry, uuid = editing existing
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [showImport, setShowImport] = useState(false);
-  const [prodTotals, setProdTotals] = useState<EntryTotals | null>(null);
+  const [showImport, setShowImport]     = useState(false);
+  const [showBatch, setShowBatch]       = useState(false);
+  const [batchRows, setBatchRows]       = useState<BatchRow[]>([{ ...EMPTY_BATCH_ROW }]);
+  const [batchSubmitting, setBatchSubmitting] = useState(false);
+  const [prodTotals, setProdTotals]     = useState<EntryTotals | null>(null);
 
   const loadEntries = useCallback(async (page = 1) => {
     setLoading(true);
@@ -263,6 +285,62 @@ export default function ProductionPage() {
     }
   };
 
+  const handleBatchSubmit = async () => {
+    const valid = batchRows.filter(
+      (r) => r.date && r.shift && r.mill_no && r.size && r.thickness
+    );
+    if (valid.length === 0) {
+      toast.error('Fill in at least one complete row (Date, Shift, Mill, Size, Thickness)');
+      return;
+    }
+    setBatchSubmitting(true);
+    let ok = 0, fail = 0;
+    for (const r of valid) {
+      const randPipes   = i(r.joint_pipes)   + i(r.cq_pipes)   + i(r.open_pipes);
+      const randTonnage = n(r.joint_tonnage) + n(r.cq_tonnage) + n(r.open_tonnage);
+      try {
+        await productionApi.create({
+          date:               r.date,
+          shift:              r.shift as 'Shift A' | 'Shift B',
+          mill_no:            r.mill_no as 'Mill1' | 'Mill2' | 'Mill3' | 'Mill4',
+          size:               r.size,
+          thickness:          r.thickness,
+          length:             r.length || STANDARD_LENGTH,
+          weight_per_pipe:    r.weight_per_pipe ? n(r.weight_per_pipe) : undefined,
+          prime_tonnage:      n(r.prime_tonnage),
+          prime_pieces:       i(r.prime_pieces),
+          joint_pipes:        i(r.joint_pipes),
+          joint_tonnage:      n(r.joint_tonnage),
+          cq_pipes:           i(r.cq_pipes),
+          cq_tonnage:         n(r.cq_tonnage),
+          open_pipes:         i(r.open_pipes),
+          open_tonnage:       n(r.open_tonnage),
+          random_pipes:       randPipes,
+          random_tonnage:     randTonnage,
+          total_pipes:        i(r.prime_pieces) + randPipes,
+          total_tonnage:      n(r.prime_tonnage) + randTonnage,
+          scrap_endcut_kg:    0,
+          scrap_bitcut_kg:    0,
+          scrap_burning_kg:   0,
+          total_scrap_kg:     0,
+          rejection_percent:  0,
+        });
+        ok++;
+      } catch {
+        fail++;
+      }
+    }
+    setBatchSubmitting(false);
+    if (ok > 0) toast.success(`${ok} entr${ok === 1 ? 'y' : 'ies'} saved`);
+    if (fail > 0) toast.error(`${fail} entr${fail === 1 ? 'y' : 'ies'} failed`);
+    if (ok > 0) {
+      setBatchRows([{ ...EMPTY_BATCH_ROW }]);
+      setShowBatch(false);
+      loadEntries();
+      productionApi.totals().then((r) => setProdTotals(r.data)).catch(() => {});
+    }
+  };
+
   const exportExcel = () => {
     const ws = XLSX.utils.json_to_sheet(entries.map((e) => ({
       Date: e.date, Shift: e.shift, Mill: e.mill_no,
@@ -302,7 +380,8 @@ export default function ProductionPage() {
             <button onClick={exportExcel} className="btn-secondary"><Download size={15} /> Export</button>
             <button onClick={() => setShowImport(true)} className="btn-secondary"><Upload size={15} /> Import CSV</button>
             <button onClick={handleDeleteAll} className="btn-danger"><Trash2 size={15} /> Delete All</button>
-            <button onClick={() => { setShowForm(true); setEditingId(null); setForm({ ...EMPTY_FORM }); }} className="btn-primary"><Plus size={15} /> New Entry</button>
+            <button onClick={() => { setShowBatch((v) => !v); setShowForm(false); }} className="btn-secondary"><Table2 size={15} /> Batch Entry</button>
+            <button onClick={() => { setShowForm(true); setShowBatch(false); setEditingId(null); setForm({ ...EMPTY_FORM }); }} className="btn-primary"><Plus size={15} /> New Entry</button>
           </>
         }
       />
@@ -338,6 +417,120 @@ export default function ProductionPage() {
           color="amber"
         />
       </div>
+
+      {/* ── Batch Entry Form ─────────────────────────────────── */}
+      {showBatch && (
+        <div className="card mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-slate-700 flex items-center gap-2">
+              <Table2 size={16} /> Batch Production Entry
+              <span className="text-xs font-normal text-slate-400 ml-1">Fill multiple rows · submit all at once</span>
+            </h2>
+            <button type="button" onClick={() => { setShowBatch(false); setBatchRows([{ ...EMPTY_BATCH_ROW }]); }} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse" style={{ minWidth: 1400 }}>
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">#</th>
+                  <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">Date *</th>
+                  <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">Shift *</th>
+                  <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">Mill *</th>
+                  <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">Size *</th>
+                  <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">Thick *</th>
+                  <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">Length</th>
+                  <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">Wt/Pipe kg</th>
+                  <th className="px-2 py-2 text-center text-blue-700 font-semibold whitespace-nowrap bg-blue-50" colSpan={2}>Prime</th>
+                  <th className="px-2 py-2 text-center text-amber-700 font-semibold whitespace-nowrap bg-amber-50" colSpan={2}>Joint</th>
+                  <th className="px-2 py-2 text-center text-orange-700 font-semibold whitespace-nowrap bg-orange-50" colSpan={2}>CQ</th>
+                  <th className="px-2 py-2 text-center text-rose-700 font-semibold whitespace-nowrap bg-rose-50" colSpan={2}>Open</th>
+                  <th className="px-2 py-2"></th>
+                </tr>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500">
+                  <th /><th /><th /><th /><th /><th /><th /><th />
+                  <th className="px-2 py-1 bg-blue-50 font-normal">MT</th>
+                  <th className="px-2 py-1 bg-blue-50 font-normal">Pcs</th>
+                  <th className="px-2 py-1 bg-amber-50 font-normal">Pcs</th>
+                  <th className="px-2 py-1 bg-amber-50 font-normal">MT</th>
+                  <th className="px-2 py-1 bg-orange-50 font-normal">Pcs</th>
+                  <th className="px-2 py-1 bg-orange-50 font-normal">MT</th>
+                  <th className="px-2 py-1 bg-rose-50 font-normal">Pcs</th>
+                  <th className="px-2 py-1 bg-rose-50 font-normal">MT</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {batchRows.map((row, idx) => {
+                  const setCell = (key: keyof BatchRow, val: string) =>
+                    setBatchRows((prev) => prev.map((r, i) => i === idx ? { ...r, [key]: val } : r));
+                  const inp = (key: keyof BatchRow, type = 'text', step?: string, bg = '') => (
+                    <input
+                      type={type}
+                      step={step}
+                      min={type === 'number' ? '0' : undefined}
+                      className={`w-full border border-slate-200 rounded px-1.5 py-1 text-xs focus:outline-none focus:border-blue-400 ${bg}`}
+                      value={row[key]}
+                      onChange={(e) => setCell(key, e.target.value)}
+                      placeholder="0"
+                    />
+                  );
+                  const sel = (key: keyof BatchRow, options: readonly string[], placeholder: string) => (
+                    <select
+                      className="w-full border border-slate-200 rounded px-1 py-1 text-xs focus:outline-none focus:border-blue-400"
+                      value={row[key]}
+                      onChange={(e) => setCell(key, e.target.value)}
+                    >
+                      <option value="">{placeholder}</option>
+                      {options.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  );
+                  return (
+                    <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                      <td className="px-2 py-1 text-slate-400 font-medium">{idx + 1}</td>
+                      <td className="px-1 py-1"><input type="date" className="border border-slate-200 rounded px-1 py-1 text-xs focus:outline-none focus:border-blue-400" value={row.date} onChange={(e) => setCell('date', e.target.value)} /></td>
+                      <td className="px-1 py-1" style={{ minWidth: 90 }}>{sel('shift', SHIFTS, 'Shift…')}</td>
+                      <td className="px-1 py-1" style={{ minWidth: 80 }}>{sel('mill_no', MILLS, 'Mill…')}</td>
+                      <td className="px-1 py-1" style={{ minWidth: 110 }}>{sel('size', PIPE_SIZES, 'Size…')}</td>
+                      <td className="px-1 py-1" style={{ minWidth: 80 }}>{sel('thickness', PIPE_THICKNESSES, 'Thick…')}</td>
+                      <td className="px-1 py-1" style={{ minWidth: 70 }}><input type="text" className="w-full border border-slate-200 rounded px-1 py-1 text-xs focus:outline-none focus:border-blue-400" value={row.length} onChange={(e) => setCell('length', e.target.value)} /></td>
+                      <td className="px-1 py-1" style={{ minWidth: 72 }}>{inp('weight_per_pipe', 'number', '0.01')}</td>
+                      <td className="px-1 py-1 bg-blue-50" style={{ minWidth: 72 }}>{inp('prime_tonnage', 'number', '0.001', 'bg-blue-50')}</td>
+                      <td className="px-1 py-1 bg-blue-50" style={{ minWidth: 60 }}>{inp('prime_pieces', 'number', '1', 'bg-blue-50')}</td>
+                      <td className="px-1 py-1 bg-amber-50" style={{ minWidth: 60 }}>{inp('joint_pipes', 'number', '1', 'bg-amber-50')}</td>
+                      <td className="px-1 py-1 bg-amber-50" style={{ minWidth: 72 }}>{inp('joint_tonnage', 'number', '0.001', 'bg-amber-50')}</td>
+                      <td className="px-1 py-1 bg-orange-50" style={{ minWidth: 60 }}>{inp('cq_pipes', 'number', '1', 'bg-orange-50')}</td>
+                      <td className="px-1 py-1 bg-orange-50" style={{ minWidth: 72 }}>{inp('cq_tonnage', 'number', '0.001', 'bg-orange-50')}</td>
+                      <td className="px-1 py-1 bg-rose-50" style={{ minWidth: 60 }}>{inp('open_pipes', 'number', '1', 'bg-rose-50')}</td>
+                      <td className="px-1 py-1 bg-rose-50" style={{ minWidth: 72 }}>{inp('open_tonnage', 'number', '0.001', 'bg-rose-50')}</td>
+                      <td className="px-1 py-1">
+                        <button type="button" disabled={batchRows.length === 1}
+                          onClick={() => setBatchRows((prev) => prev.filter((_, i) => i !== idx))}
+                          className="text-red-400 hover:text-red-600 disabled:opacity-30 p-0.5">
+                          <Trash2 size={13} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex items-center gap-3 mt-4">
+            <button type="button"
+              onClick={() => setBatchRows((prev) => [...prev, { ...EMPTY_BATCH_ROW }])}
+              className="btn-secondary text-sm">
+              <Plus size={14} /> Add Row
+            </button>
+            <button type="button" onClick={handleBatchSubmit} disabled={batchSubmitting} className="btn-primary text-sm">
+              {batchSubmitting ? <Spinner size={14} /> : <Factory size={14} />}
+              {batchSubmitting ? 'Saving…' : `Submit All (${batchRows.length} row${batchRows.length > 1 ? 's' : ''})`}
+            </button>
+            <p className="text-xs text-slate-400">Rows missing Date / Shift / Mill / Size / Thickness will be skipped.</p>
+          </div>
+        </div>
+      )}
 
       {/* ── Entry Form ──────────────────────────────────────── */}
       {showForm && (

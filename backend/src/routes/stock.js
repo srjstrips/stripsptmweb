@@ -120,6 +120,50 @@ router.get('/report', async (req, res, next) => {
   }
 });
 
+// ── GET /api/stock/prime-matrix?date=YYYY-MM-DD ───────────────
+// Returns prime produced vs prime dispatched per size×thickness
+// (all combos that appear in either production or dispatch up to date)
+router.get('/prime-matrix', async (req, res, next) => {
+  const { date } = req.query;
+  if (!date) {
+    return res.status(400).json({ success: false, message: 'date query param is required' });
+  }
+
+  try {
+    const [prod, disp] = await Promise.all([
+      db(
+        `SELECT size, thickness,
+           ROUND(COALESCE(SUM(prime_tonnage), 0), 3) AS prime_produced
+         FROM production_entries
+         WHERE date <= $1
+         GROUP BY size, thickness`,
+        [date]
+      ),
+      db(
+        `SELECT size, thickness,
+           ROUND(COALESCE(SUM(prime_tonnage), 0), 3) AS prime_dispatched
+         FROM dispatch_entries
+         WHERE date <= $1
+         GROUP BY size, thickness`,
+        [date]
+      ),
+    ]);
+
+    // Build a unified list of all size×thickness combos from both tables
+    const keys = new Map();
+    for (const r of prod.rows)  keys.set(`${r.size}|${r.thickness}`, { size: r.size, thickness: r.thickness, prime_produced: parseFloat(r.prime_produced), prime_dispatched: 0 });
+    for (const r of disp.rows) {
+      const k = `${r.size}|${r.thickness}`;
+      if (keys.has(k)) keys.get(k).prime_dispatched = parseFloat(r.prime_dispatched);
+      else keys.set(k, { size: r.size, thickness: r.thickness, prime_produced: 0, prime_dispatched: parseFloat(r.prime_dispatched) });
+    }
+
+    res.json({ success: true, date, data: Array.from(keys.values()) });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── GET /api/stock/as-of?date=YYYY-MM-DD ──────────────────────
 router.get('/as-of', async (req, res, next) => {
   const { date } = req.query;

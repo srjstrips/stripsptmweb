@@ -288,6 +288,17 @@ router.post('/import', async (req, res, next) => {
   }
 });
 
+// ── DELETE /api/dispatch/all ──────────────────────────────────
+// Must be defined BEFORE /:id so Express doesn't treat "all" as an id param
+router.delete('/all', async (req, res, next) => {
+  try {
+    const result = await db('DELETE FROM dispatch_entries RETURNING id', []);
+    res.json({ success: true, deleted: result.rowCount, message: `${result.rowCount} dispatch entries deleted` });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── DELETE /api/dispatch/:id ──────────────────────────────────
 router.delete('/:id', async (req, res, next) => {
   try {
@@ -299,16 +310,6 @@ router.delete('/:id', async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Entry not found' });
     }
     res.json({ success: true, message: 'Dispatch entry deleted' });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// ── DELETE /api/dispatch/all ──────────────────────────────────
-router.delete('/all', async (req, res, next) => {
-  try {
-    const result = await db('DELETE FROM dispatch_entries RETURNING id', []);
-    res.json({ success: true, deleted: result.rowCount, message: `${result.rowCount} dispatch entries deleted` });
   } catch (err) {
     next(err);
   }

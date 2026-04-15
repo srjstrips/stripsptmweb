@@ -469,6 +469,17 @@ router.post('/import', async (req, res, next) => {
   }
 });
 
+// ── DELETE /api/production/all ────────────────────────────────
+// Must be defined BEFORE /:id so Express doesn't treat "all" as an id param
+router.delete('/all', async (req, res, next) => {
+  try {
+    const result = await db('DELETE FROM production_entries RETURNING id', []);
+    res.json({ success: true, deleted: result.rowCount, message: `${result.rowCount} production entries deleted` });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── DELETE /api/production/:id ────────────────────────────────
 router.delete('/:id', async (req, res, next) => {
   try {
@@ -480,16 +491,6 @@ router.delete('/:id', async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Entry not found' });
     }
     res.json({ success: true, message: 'Production entry deleted' });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// ── DELETE /api/production/all ────────────────────────────────
-router.delete('/all', async (req, res, next) => {
-  try {
-    const result = await db('DELETE FROM production_entries RETURNING id', []);
-    res.json({ success: true, deleted: result.rowCount, message: `${result.rowCount} production entries deleted` });
   } catch (err) {
     next(err);
   }

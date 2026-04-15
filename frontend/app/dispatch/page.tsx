@@ -405,8 +405,8 @@ export default function DispatchPage() {
               <p className="text-xs font-bold text-amber-700 mb-2 uppercase tracking-wide">Random Dispatch</p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="form-label">Tonnage (MT) *</label>
-                  <input type="number" step="0.001" min="0" className="form-input" value={form.random_tonnage} onChange={field('random_tonnage')} required placeholder="0.000" />
+                  <label className="form-label">Tonnage (MT)</label>
+                  <input type="number" step="0.001" min="0" className="form-input" value={form.random_tonnage} onChange={field('random_tonnage')} placeholder="0.000" />
                 </div>
                 <div className="flex items-end">
                   <p className="text-xs text-amber-600 italic">Random pipes are dispatched by tonnage only — pieces not required.</p>

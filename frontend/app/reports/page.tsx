@@ -11,7 +11,7 @@ import PageHeader from '@/components/PageHeader';
 import StatCard from '@/components/StatCard';
 import Spinner from '@/components/Spinner';
 import EmptyState from '@/components/EmptyState';
-import { stockApi, productionApi, dispatchApi, ProductionEntry, DispatchEntry, ReportProductionRow, StockSummaryRow, StockAsOfRow } from '@/lib/api';
+import { stockApi, productionApi, dispatchApi, ProductionEntry, DispatchEntry, ReportProductionRow, StockSummaryRow, PrimeMatrixRow } from '@/lib/api';
 import { PIPE_SIZES, PIPE_THICKNESSES } from '@/lib/constants';
 
 interface ReportData {
@@ -35,8 +35,8 @@ export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('summary');
 
   // ── Stock Matrix state ─────────────────────────────────────
-  const [matrixDate, setMatrixDate]     = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [matrixData, setMatrixData]     = useState<StockAsOfRow[]>([]);
+  const [matrixDate, setMatrixDate]       = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [matrixData, setMatrixData]       = useState<PrimeMatrixRow[]>([]);
   const [matrixLoading, setMatrixLoading] = useState(false);
 
   const generateReport = useCallback(async () => {
@@ -95,77 +95,87 @@ export default function ReportsPage() {
 
   const exportMatrixExcel = () => {
     if (!matrixData.length) return;
-    const header = ['Size', ...matrixThicknesses.map((t) => `${t} mm`), 'Total MT'];
+    // Two header rows: thickness labels + Prod/Disp sub-headers
+    const thickCols = matrixThicknesses.flatMap((t) => [`${t}mm Prod`, `${t}mm Disp`]);
+    const header = ['Size', ...thickCols, 'Total Prod MT', 'Total Disp MT'];
     const dataRows = matrixSizes.map((size) => {
-      const rowTotal = matrixThicknesses.reduce((s, t) => s + Math.max(0, matrixLookup[`${size}|${t}`] ?? 0), 0);
-      return [
-        size,
-        ...matrixThicknesses.map((t) => {
-          const v = matrixLookup[`${size}|${t}`] ?? null;
-          return v !== null && v > 0 ? v : '';
-        }),
-        rowTotal > 0 ? rowTotal : '',
-      ];
+      let rowProd = 0, rowDisp = 0;
+      const cells = matrixThicknesses.flatMap((t) => {
+        const v = matrixLookup[`${size}|${t}`];
+        rowProd += v?.produced ?? 0;
+        rowDisp += v?.dispatched ?? 0;
+        return [v?.produced ?? '', v?.dispatched ?? ''];
+      });
+      return [size, ...cells, rowProd || '', rowDisp || ''];
     });
     const totalRow = [
       'TOTAL',
-      ...matrixThicknesses.map((t) =>
-        matrixSizes.reduce((s, size) => s + Math.max(0, matrixLookup[`${size}|${t}`] ?? 0), 0)
-      ),
-      matrixGrandTotal,
+      ...matrixThicknesses.flatMap((t) => [
+        matrixSizes.reduce((s, sz) => s + (matrixLookup[`${sz}|${t}`]?.produced ?? 0), 0),
+        matrixSizes.reduce((s, sz) => s + (matrixLookup[`${sz}|${t}`]?.dispatched ?? 0), 0),
+      ]),
+      matrixGrandProd,
+      matrixGrandDisp,
     ];
     const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows, totalRow]);
     ws['!cols'] = header.map(() => ({ wch: 12 }));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Stock Matrix');
-    XLSX.writeFile(wb, `stock_matrix_${matrixDate}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Prime Matrix');
+    XLSX.writeFile(wb, `prime_matrix_${matrixDate}.xlsx`);
   };
 
   const exportMatrixPDF = () => {
     if (!matrixData.length) return;
-    const doc = new jsPDF({ orientation: matrixThicknesses.length > 8 ? 'landscape' : 'portrait' });
+    const doc = new jsPDF({ orientation: 'landscape' });
     doc.setFontSize(13);
-    doc.text('Stock Matrix — Size × Thickness (MT)', 14, 15);
+    doc.text('Prime Pipe Matrix — Production vs Dispatch (MT)', 14, 15);
     doc.setFontSize(9);
-    doc.text(`As of ${format(new Date(matrixDate + 'T00:00:00'), 'dd MMM yyyy')}   |   Grand Total: ${matrixGrandTotal.toFixed(3)} MT`, 14, 22);
+    doc.text(
+      `As of ${format(new Date(matrixDate + 'T00:00:00'), 'dd MMM yyyy')}   |   Prod: ${matrixGrandProd.toFixed(3)} MT   Disp: ${matrixGrandDisp.toFixed(3)} MT`,
+      14, 22
+    );
 
-    const head = [['Size', ...matrixThicknesses.map((t) => `${t}mm`), 'Total']];
+    const head = [['Size', ...matrixThicknesses.flatMap((t) => [`${t}mm\nProd`, `${t}mm\nDisp`]), 'Tot Prod', 'Tot Disp']];
     const body = matrixSizes.map((size) => {
-      const rowTotal = matrixThicknesses.reduce((s, t) => s + Math.max(0, matrixLookup[`${size}|${t}`] ?? 0), 0);
-      return [
-        size,
-        ...matrixThicknesses.map((t) => {
-          const v = matrixLookup[`${size}|${t}`] ?? null;
-          return v !== null && v > 0 ? v.toFixed(3) : '—';
-        }),
-        rowTotal > 0 ? rowTotal.toFixed(3) : '—',
-      ];
+      let rowProd = 0, rowDisp = 0;
+      const cells = matrixThicknesses.flatMap((t) => {
+        const v = matrixLookup[`${size}|${t}`];
+        rowProd += v?.produced ?? 0;
+        rowDisp += v?.dispatched ?? 0;
+        return [
+          v?.produced  ? v.produced.toFixed(3)  : '—',
+          v?.dispatched ? v.dispatched.toFixed(3) : '—',
+        ];
+      });
+      return [size, ...cells, rowProd ? rowProd.toFixed(3) : '—', rowDisp ? rowDisp.toFixed(3) : '—'];
     });
     const foot = [[
       'TOTAL',
-      ...matrixThicknesses.map((t) =>
-        matrixSizes.reduce((s, size) => s + Math.max(0, matrixLookup[`${size}|${t}`] ?? 0), 0).toFixed(3)
-      ),
-      matrixGrandTotal.toFixed(3),
+      ...matrixThicknesses.flatMap((t) => [
+        matrixSizes.reduce((s, sz) => s + (matrixLookup[`${sz}|${t}`]?.produced ?? 0), 0).toFixed(3),
+        matrixSizes.reduce((s, sz) => s + (matrixLookup[`${sz}|${t}`]?.dispatched ?? 0), 0).toFixed(3),
+      ]),
+      matrixGrandProd.toFixed(3),
+      matrixGrandDisp.toFixed(3),
     ]];
 
     autoTable(doc, {
       head, body, foot,
       startY: 27,
-      styles: { fontSize: 7, cellPadding: 2 },
+      styles: { fontSize: 6, cellPadding: 1.5 },
       headStyles: { fillColor: [59, 130, 246], textColor: 255, fontStyle: 'bold' },
       footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' },
-      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 22 } },
+      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 20 } },
       alternateRowStyles: { fillColor: [248, 250, 252] },
     });
 
-    doc.save(`stock_matrix_${matrixDate}.pdf`);
+    doc.save(`prime_matrix_${matrixDate}.pdf`);
   };
 
   const loadMatrix = useCallback(async () => {
     setMatrixLoading(true);
     try {
-      const res = await stockApi.asOf(matrixDate);
+      const res = await stockApi.primeMatrix(matrixDate);
       setMatrixData(res.data.data);
     } catch {
       toast.error('Failed to load stock matrix');
@@ -175,14 +185,19 @@ export default function ReportsPage() {
   }, [matrixDate]);
 
   // Pivot helpers for the matrix
-  const dataSizes      = new Set(matrixData.map((r) => r.size));
+  const dataSizes       = new Set(matrixData.map((r) => r.size));
   const dataThicknesses = new Set(matrixData.map((r) => r.thickness));
   const matrixSizes       = PIPE_SIZES.filter((s) => dataSizes.has(s));
   const matrixThicknesses = PIPE_THICKNESSES.filter((t) => dataThicknesses.has(t));
+  // lookup: key → { produced, dispatched }
   const matrixLookup = Object.fromEntries(
-    matrixData.map((r) => [`${r.size}|${r.thickness}`, parseFloat(String(r.total_tonnage))])
+    matrixData.map((r) => [
+      `${r.size}|${r.thickness}`,
+      { produced: parseFloat(String(r.prime_produced)), dispatched: parseFloat(String(r.prime_dispatched)) },
+    ])
   );
-  const matrixGrandTotal = matrixData.reduce((s, r) => s + Math.max(0, parseFloat(String(r.total_tonnage))), 0);
+  const matrixGrandProd = matrixData.reduce((s, r) => s + parseFloat(String(r.prime_produced)), 0);
+  const matrixGrandDisp = matrixData.reduce((s, r) => s + parseFloat(String(r.prime_dispatched)), 0);
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'summary',    label: 'Summary' },
@@ -510,44 +525,53 @@ export default function ReportsPage() {
 
           {!matrixLoading && matrixData.length > 0 && (
             <div className="card overflow-x-auto p-0">
-              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
                 <div>
-                  <p className="text-sm font-semibold text-slate-700">Size × Thickness — Total Tonnage (MT)</p>
-                  <p className="text-xs text-slate-400">As of {format(new Date(matrixDate + 'T00:00:00'), 'dd MMM yyyy')}</p>
+                  <p className="text-sm font-semibold text-slate-700">Prime Pipe Matrix — Size × Thickness (MT)</p>
+                  <p className="text-xs text-slate-400">As of {format(new Date(matrixDate + 'T00:00:00'), 'dd MMM yyyy')} &nbsp;·&nbsp; <span className="text-blue-600">Prod</span> / <span className="text-amber-600">Disp</span> per cell</p>
                 </div>
-                <span className="text-sm font-bold text-green-700">
-                  Grand Total: {matrixGrandTotal.toFixed(3)} MT
-                </span>
+                <div className="flex gap-4 text-sm font-semibold">
+                  <span className="text-blue-700">Total Prod: {matrixGrandProd.toFixed(3)} MT</span>
+                  <span className="text-amber-700">Total Disp: {matrixGrandDisp.toFixed(3)} MT</span>
+                </div>
               </div>
-              <table className="w-full text-sm">
+              <table className="w-full text-xs">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="table-th bg-slate-100 font-bold text-slate-700 sticky left-0">Size ↓ / Thick →</th>
+                    <th className="table-th bg-slate-100 font-bold text-slate-700 sticky left-0 whitespace-nowrap">Size ↓ / Thick →</th>
                     {matrixThicknesses.map((t) => (
-                      <th key={t} className="table-th text-center text-blue-700">{t} mm</th>
+                      <th key={t} className="table-th text-center text-blue-700 whitespace-nowrap">{t} mm</th>
                     ))}
-                    <th className="table-th text-right bg-green-50 text-green-700 font-bold">Total MT</th>
+                    <th className="table-th text-right bg-blue-50 text-blue-700 font-bold whitespace-nowrap">Row Prod</th>
+                    <th className="table-th text-right bg-amber-50 text-amber-700 font-bold whitespace-nowrap">Row Disp</th>
                   </tr>
                 </thead>
                 <tbody>
                   {matrixSizes.map((size, si) => {
-                    const rowTotal = matrixThicknesses.reduce((s, t) => s + Math.max(0, matrixLookup[`${size}|${t}`] ?? 0), 0);
+                    let rowProd = 0, rowDisp = 0;
+                    const cells = matrixThicknesses.map((t) => {
+                      const v = matrixLookup[`${size}|${t}`];
+                      rowProd += v?.produced  ?? 0;
+                      rowDisp += v?.dispatched ?? 0;
+                      return (
+                        <td key={t} className="table-td text-center align-top px-2 py-1">
+                          {v ? (
+                            <div className="flex flex-col leading-tight">
+                              <span className={v.produced  > 0 ? 'text-blue-700 font-medium' : 'text-slate-300'}>{v.produced  > 0 ? v.produced.toFixed(3)  : '—'}</span>
+                              <span className={v.dispatched > 0 ? 'text-amber-600' : 'text-slate-300'}>{v.dispatched > 0 ? v.dispatched.toFixed(3) : '—'}</span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-200">—</span>
+                          )}
+                        </td>
+                      );
+                    });
                     return (
                       <tr key={size} className={si % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                        <td className="table-td font-semibold text-slate-700 sticky left-0 bg-inherit">{size}</td>
-                        {matrixThicknesses.map((t) => {
-                          const val = matrixLookup[`${size}|${t}`] ?? null;
-                          return (
-                            <td key={t} className="table-td text-center">
-                              {val !== null && val > 0
-                                ? <span className="font-medium text-slate-800">{val.toFixed(3)}</span>
-                                : <span className="text-slate-300">—</span>}
-                            </td>
-                          );
-                        })}
-                        <td className="table-td text-right font-bold text-green-700">
-                          {rowTotal > 0 ? rowTotal.toFixed(3) : <span className="text-slate-300">—</span>}
-                        </td>
+                        <td className="table-td font-semibold text-slate-700 sticky left-0 bg-inherit whitespace-nowrap">{size}</td>
+                        {cells}
+                        <td className="table-td text-right font-bold text-blue-700">{rowProd > 0 ? rowProd.toFixed(3) : <span className="text-slate-300">—</span>}</td>
+                        <td className="table-td text-right font-bold text-amber-700">{rowDisp > 0 ? rowDisp.toFixed(3) : <span className="text-slate-300">—</span>}</td>
                       </tr>
                     );
                   })}
@@ -556,14 +580,21 @@ export default function ReportsPage() {
                   <tr>
                     <td className="table-td text-slate-700 sticky left-0 bg-slate-100">TOTAL</td>
                     {matrixThicknesses.map((t) => {
-                      const colTotal = matrixSizes.reduce((s, size) => s + Math.max(0, matrixLookup[`${size}|${t}`] ?? 0), 0);
+                      const colProd = matrixSizes.reduce((s, sz) => s + (matrixLookup[`${sz}|${t}`]?.produced  ?? 0), 0);
+                      const colDisp = matrixSizes.reduce((s, sz) => s + (matrixLookup[`${sz}|${t}`]?.dispatched ?? 0), 0);
                       return (
-                        <td key={t} className="table-td text-center text-blue-700">
-                          {colTotal > 0 ? colTotal.toFixed(3) : <span className="text-slate-300">—</span>}
+                        <td key={t} className="table-td text-center align-top px-2 py-1">
+                          {(colProd > 0 || colDisp > 0) ? (
+                            <div className="flex flex-col leading-tight">
+                              <span className="text-blue-700">{colProd > 0 ? colProd.toFixed(3) : '—'}</span>
+                              <span className="text-amber-600">{colDisp > 0 ? colDisp.toFixed(3) : '—'}</span>
+                            </div>
+                          ) : <span className="text-slate-300">—</span>}
                         </td>
                       );
                     })}
-                    <td className="table-td text-right text-green-700">{matrixGrandTotal.toFixed(3)}</td>
+                    <td className="table-td text-right text-blue-700">{matrixGrandProd.toFixed(3)}</td>
+                    <td className="table-td text-right text-amber-700">{matrixGrandDisp.toFixed(3)}</td>
                   </tr>
                 </tfoot>
               </table>
