@@ -153,6 +153,19 @@ export default function DispatchPage() {
     }
   };
 
+  const handleDeleteAll = async () => {
+    if (!confirm('DELETE ALL dispatch entries? This cannot be undone and will reset all dispatch stock.')) return;
+    if (!confirm('Are you absolutely sure? ALL dispatch data will be permanently erased.')) return;
+    try {
+      const res = await dispatchApi.deleteAll();
+      toast.success(res.data.message);
+      loadEntries();
+      dispatchApi.totals().then((r) => setDispTotals(r.data)).catch(() => {});
+    } catch {
+      toast.error('Failed to delete all dispatch entries');
+    }
+  };
+
   const exportExcel = () => {
     const ws = XLSX.utils.json_to_sheet(entries.map((e) => ({
       Date: e.date,
@@ -205,6 +218,7 @@ export default function DispatchPage() {
           <>
             <button onClick={exportExcel} className="btn-secondary"><Download size={15} /> Export</button>
             <button onClick={() => setShowImport(true)} className="btn-secondary"><Upload size={15} /> Import CSV</button>
+            <button onClick={handleDeleteAll} className="btn-danger"><Trash2 size={15} /> Delete All</button>
             <button onClick={() => setShowForm((v) => !v)} className="btn-primary"><Plus size={15} /> New Dispatch</button>
           </>
         }

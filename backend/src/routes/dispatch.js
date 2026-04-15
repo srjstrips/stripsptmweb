@@ -304,4 +304,14 @@ router.delete('/:id', async (req, res, next) => {
   }
 });
 
+// ── DELETE /api/dispatch/all ──────────────────────────────────
+router.delete('/all', async (req, res, next) => {
+  try {
+    const result = await db('DELETE FROM dispatch_entries RETURNING id', []);
+    res.json({ success: true, deleted: result.rowCount, message: `${result.rowCount} dispatch entries deleted` });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

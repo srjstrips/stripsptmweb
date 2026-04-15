@@ -249,6 +249,20 @@ export default function ProductionPage() {
     }
   };
 
+  const handleDeleteAll = async () => {
+    if (!confirm('DELETE ALL production entries? This cannot be undone and will reset all production stock.')) return;
+    if (!confirm('Are you absolutely sure? ALL production data will be permanently erased.')) return;
+    try {
+      const res = await productionApi.deleteAll();
+      toast.success(res.data.message);
+      loadEntries();
+      loadMillSummary();
+      productionApi.totals().then((r) => setProdTotals(r.data)).catch(() => {});
+    } catch {
+      toast.error('Failed to delete all production entries');
+    }
+  };
+
   const exportExcel = () => {
     const ws = XLSX.utils.json_to_sheet(entries.map((e) => ({
       Date: e.date, Shift: e.shift, Mill: e.mill_no,
@@ -287,6 +301,7 @@ export default function ProductionPage() {
           <>
             <button onClick={exportExcel} className="btn-secondary"><Download size={15} /> Export</button>
             <button onClick={() => setShowImport(true)} className="btn-secondary"><Upload size={15} /> Import CSV</button>
+            <button onClick={handleDeleteAll} className="btn-danger"><Trash2 size={15} /> Delete All</button>
             <button onClick={() => { setShowForm(true); setEditingId(null); setForm({ ...EMPTY_FORM }); }} className="btn-primary"><Plus size={15} /> New Entry</button>
           </>
         }

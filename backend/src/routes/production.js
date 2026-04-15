@@ -485,4 +485,14 @@ router.delete('/:id', async (req, res, next) => {
   }
 });
 
+// ── DELETE /api/production/all ────────────────────────────────
+router.delete('/all', async (req, res, next) => {
+  try {
+    const result = await db('DELETE FROM production_entries RETURNING id', []);
+    res.json({ success: true, deleted: result.rowCount, message: `${result.rowCount} production entries deleted` });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

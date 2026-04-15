@@ -149,6 +149,8 @@ export const productionApi = {
     api.get<{ success: boolean; data: MillSummaryRow[] }>('/api/production/mill-summary'),
   totals: () =>
     api.get<{ success: boolean } & EntryTotals>('/api/production/totals'),
+  deleteAll: () =>
+    api.delete<{ success: boolean; deleted: number; message: string }>('/api/production/all'),
   import: (rows: Record<string, string>[]) =>
     api.post<ImportResult>('/api/production/import', { rows }),
 };
@@ -164,6 +166,8 @@ export const dispatchApi = {
     api.delete<{ success: boolean; message: string }>(`/api/dispatch/${id}`),
   totals: () =>
     api.get<{ success: boolean } & EntryTotals>('/api/dispatch/totals'),
+  deleteAll: () =>
+    api.delete<{ success: boolean; deleted: number; message: string }>('/api/dispatch/all'),
   import: (rows: Record<string, string>[]) =>
     api.post<ImportResult>('/api/dispatch/import', { rows }),
 };
