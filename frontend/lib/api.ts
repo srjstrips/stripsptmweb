@@ -174,6 +174,13 @@ export interface StockAsOfRow {
   total_tonnage: number;
 }
 
+export interface PrimeMatrixRow {
+  size: string;
+  thickness: string;
+  prime_produced: number;
+  prime_dispatched: number;
+}
+
 export const stockApi = {
   get: (params?: Record<string, string>) =>
     api.get<{ success: boolean; totals: StockTotals; summary: StockSummaryRow[] }>(
@@ -189,5 +196,9 @@ export const stockApi = {
   asOf: (date: string) =>
     api.get<{ success: boolean; date: string; data: StockAsOfRow[] }>(
       '/api/stock/as-of', { params: { date } }
+    ),
+  primeMatrix: (date: string) =>
+    api.get<{ success: boolean; date: string; data: PrimeMatrixRow[] }>(
+      '/api/stock/prime-matrix', { params: { date } }
     ),
 };
