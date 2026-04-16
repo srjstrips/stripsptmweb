@@ -81,6 +81,7 @@ export interface DispatchEntry {
   supervisor: string | null;
   delivery_location: string | null;
   remark: string | null;
+  stamp: string | null;
   created_at: string;
 }
 
@@ -100,6 +101,12 @@ export interface StockSummaryRow {
   prime_pieces: number;
   random_tonnage: number;
   random_pieces: number;
+}
+
+export interface DetailedStockRow extends StockSummaryRow {
+  length: string;
+  stamp: string;
+  total_tonnage: number;
 }
 
 export interface ReportProductionRow extends StockSummaryRow {
@@ -204,5 +211,9 @@ export const stockApi = {
   primeMatrix: (date: string) =>
     api.get<{ success: boolean; date: string; data: PrimeMatrixRow[] }>(
       '/api/stock/prime-matrix', { params: { date } }
+    ),
+  detail: (params?: Record<string, string>) =>
+    api.get<{ success: boolean; data: DetailedStockRow[] }>(
+      '/api/stock/detail', { params }
     ),
 };

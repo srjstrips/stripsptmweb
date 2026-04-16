@@ -11,7 +11,7 @@ import EmptyState from '@/components/EmptyState';
 import Spinner from '@/components/Spinner';
 import { dispatchApi, stockApi, DispatchEntry, StockSummaryRow, EntryTotals } from '@/lib/api';
 import CsvImportModal from '@/components/CsvImportModal';
-import { PIPE_SIZES, PIPE_THICKNESSES, STANDARD_LENGTH } from '@/lib/constants';
+import { PIPE_SIZES, PIPE_THICKNESSES, STANDARD_LENGTH, IS_GRADES } from '@/lib/constants';
 
 const EMPTY_FORM = {
   date: format(new Date(), 'yyyy-MM-dd'),
@@ -32,6 +32,7 @@ const EMPTY_FORM = {
   supervisor: '',
   delivery_location: '',
   remark: '',
+  stamp: '',
 };
 
 function calcPieces(tonnage: string, weightPerPipe: string): string {
@@ -121,6 +122,7 @@ export default function DispatchPage() {
         supervisor: form.supervisor || null,
         delivery_location: form.delivery_location || null,
         remark: form.remark || null,
+        stamp: form.stamp || null,
       });
       toast.success('Dispatch entry saved!');
       setForm({ ...EMPTY_FORM });
@@ -365,8 +367,15 @@ export default function DispatchPage() {
               </div>
             )}
 
-            {/* Row 3 — Weight per Pipe + PDI + Supervisor + Delivery Location */}
+            {/* Row 3 — IS Grade + Weight per Pipe + PDI + Supervisor */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div>
+                <label className="form-label">IS Grade (Stamp)</label>
+                <select className="form-select" value={form.stamp} onChange={field('stamp')}>
+                  <option value="">Select grade…</option>
+                  {IS_GRADES.map((g) => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
               <div>
                 <label className="form-label">Wt. of Single Pipe (kg) <span className="text-slate-400 font-normal">— auto-calc pcs</span></label>
                 <input type="number" step="0.01" min="0" className="form-input" value={form.weight_per_pipe} onChange={field('weight_per_pipe')} placeholder="e.g. 48.5" />
@@ -379,6 +388,10 @@ export default function DispatchPage() {
                 <label className="form-label">Supervisor</label>
                 <input type="text" className="form-input" value={form.supervisor} onChange={field('supervisor')} placeholder="Supervisor name" />
               </div>
+            </div>
+
+            {/* Delivery Location */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div>
                 <label className="form-label">Delivery Location</label>
                 <input type="text" className="form-input" value={form.delivery_location} onChange={field('delivery_location')} placeholder="Destination" />

@@ -2,36 +2,174 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { Package, Filter, Download, RefreshCw } from 'lucide-react';
+import { Package, Download, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import PageHeader from '@/components/PageHeader';
 import StatCard from '@/components/StatCard';
 import EmptyState from '@/components/EmptyState';
 import Spinner from '@/components/Spinner';
-import { stockApi, productionApi, dispatchApi, StockSummaryRow, StockTotals, EntryTotals } from '@/lib/api';
+import { stockApi, productionApi, dispatchApi, DetailedStockRow, StockTotals, EntryTotals } from '@/lib/api';
+import { IS_1239_GRADE } from '@/lib/constants';
 
+// ── helpers ───────────────────────────────────────────────────
+function f(v: number | string) { return parseFloat(String(v)).toFixed(3); }
+function n(v: number | string) { return parseFloat(String(v)) || 0; }
+
+interface MatrixTotals {
+  prime_tonnage: number;
+  prime_pieces: number;
+  random_tonnage: number;
+  random_pieces: number;
+  total_tonnage: number;
+}
+
+function calcTotals(rows: DetailedStockRow[]): MatrixTotals {
+  return rows.reduce(
+    (acc, r) => ({
+      prime_tonnage:  acc.prime_tonnage  + n(r.prime_tonnage),
+      prime_pieces:   acc.prime_pieces   + (r.prime_pieces  || 0),
+      random_tonnage: acc.random_tonnage + n(r.random_tonnage),
+      random_pieces:  acc.random_pieces  + (r.random_pieces || 0),
+      total_tonnage:  acc.total_tonnage  + n(r.total_tonnage),
+    }),
+    { prime_tonnage: 0, prime_pieces: 0, random_tonnage: 0, random_pieces: 0, total_tonnage: 0 }
+  );
+}
+
+// ── StockMatrix component ─────────────────────────────────────
+function StockMatrix({
+  title,
+  subtitle,
+  rows,
+  color,
+}: {
+  title: string;
+  subtitle?: string;
+  rows: DetailedStockRow[];
+  color: 'blue' | 'violet' | 'rose';
+}) {
+  const headerBg   = { blue: 'bg-blue-600', violet: 'bg-violet-600', rose: 'bg-rose-600' }[color];
+  const subBg      = { blue: 'bg-blue-50',  violet: 'bg-violet-50',  rose: 'bg-rose-50'  }[color];
+  const totalText  = { blue: 'text-blue-700', violet: 'text-violet-700', rose: 'text-rose-700' }[color];
+
+  if (rows.length === 0) {
+    return (
+      <div className="card">
+        <div className={`${headerBg} text-white rounded-t-lg px-4 py-3 -mx-4 -mt-4 mb-4`}>
+          <h3 className="font-semibold text-sm">{title}</h3>
+          {subtitle && <p className="text-xs opacity-75 mt-0.5">{subtitle}</p>}
+        </div>
+        <EmptyState icon={Package} title="No stock" description="No entries match this category." />
+      </div>
+    );
+  }
+
+  // Group rows by size for subtotals
+  const sizeGroups = rows.reduce<Record<string, DetailedStockRow[]>>((acc, r) => {
+    if (!acc[r.size]) acc[r.size] = [];
+    acc[r.size].push(r);
+    return acc;
+  }, {});
+
+  const grandTotals = calcTotals(rows);
+
+  return (
+    <div className="card overflow-x-auto p-0">
+      {/* Header */}
+      <div className={`${headerBg} text-white px-4 py-3`}>
+        <h3 className="font-semibold text-sm">{title}</h3>
+        {subtitle && <p className="text-xs opacity-75 mt-0.5">{subtitle}</p>}
+      </div>
+
+      <table className="w-full text-sm min-w-[680px]">
+        <thead className={`${subBg} border-b border-slate-200`}>
+          <tr>
+            <th className="table-th">Size</th>
+            <th className="table-th">Thickness</th>
+            <th className="table-th text-right">Prime MT</th>
+            <th className="table-th text-right">Prime Pcs</th>
+            <th className="table-th text-right">Random MT</th>
+            <th className="table-th text-right">Random Pcs</th>
+            <th className="table-th text-right font-bold">Total MT</th>
+          </tr>
+        </thead>
+        <tbody>
+          {Object.entries(sizeGroups).map(([size, sizeRows]) => {
+            const sizeTotals = calcTotals(sizeRows);
+            const multiThick = sizeRows.length > 1;
+            return (
+              <>
+                {sizeRows.map((row, idx) => (
+                  <tr key={`${row.size}-${row.thickness}-${row.length}-${row.stamp}-${idx}`}
+                    className="border-b border-slate-50 hover:bg-slate-50">
+                    <td className="table-td font-medium whitespace-nowrap">{row.size}</td>
+                    <td className="table-td">{row.thickness} mm</td>
+                    <td className="table-td text-right">
+                      <span className={n(row.prime_tonnage) > 0 ? 'text-blue-700 font-medium' : 'text-slate-300'}>
+                        {f(row.prime_tonnage)}
+                      </span>
+                    </td>
+                    <td className="table-td text-right text-slate-600">{row.prime_pieces ?? 0}</td>
+                    <td className="table-td text-right">
+                      <span className={n(row.random_tonnage) > 0 ? 'text-amber-600 font-medium' : 'text-slate-300'}>
+                        {f(row.random_tonnage)}
+                      </span>
+                    </td>
+                    <td className="table-td text-right text-slate-600">{row.random_pieces ?? 0}</td>
+                    <td className="table-td text-right font-bold text-green-700">{f(row.total_tonnage)}</td>
+                  </tr>
+                ))}
+                {multiThick && (
+                  <tr className={`${subBg} border-b border-slate-200`}>
+                    <td className={`table-td font-semibold ${totalText}`} colSpan={2}>
+                      {size} — subtotal
+                    </td>
+                    <td className={`table-td text-right font-semibold ${totalText}`}>{sizeTotals.prime_tonnage.toFixed(3)}</td>
+                    <td className={`table-td text-right font-semibold ${totalText}`}>{sizeTotals.prime_pieces}</td>
+                    <td className={`table-td text-right font-semibold text-amber-700`}>{sizeTotals.random_tonnage.toFixed(3)}</td>
+                    <td className={`table-td text-right font-semibold text-amber-700`}>{sizeTotals.random_pieces}</td>
+                    <td className="table-td text-right font-bold text-green-700">{sizeTotals.total_tonnage.toFixed(3)}</td>
+                  </tr>
+                )}
+              </>
+            );
+          })}
+        </tbody>
+        <tfoot className="bg-slate-50 border-t-2 border-slate-300">
+          <tr>
+            <td className="table-td font-bold" colSpan={2}>TOTAL</td>
+            <td className={`table-td text-right font-bold ${totalText}`}>{grandTotals.prime_tonnage.toFixed(3)}</td>
+            <td className={`table-td text-right font-bold ${totalText}`}>{grandTotals.prime_pieces}</td>
+            <td className="table-td text-right font-bold text-amber-700">{grandTotals.random_tonnage.toFixed(3)}</td>
+            <td className="table-td text-right font-bold text-amber-700">{grandTotals.random_pieces}</td>
+            <td className="table-td text-right font-bold text-green-700">{grandTotals.total_tonnage.toFixed(3)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────
 export default function StockPage() {
-  const [summary, setSummary]         = useState<StockSummaryRow[]>([]);
-  const [totals, setTotals]           = useState<StockTotals | null>(null);
+  const [detail, setDetail]           = useState<DetailedStockRow[]>([]);
+  const [stockTotals, setStockTotals] = useState<StockTotals | null>(null);
   const [prodTotals, setProdTotals]   = useState<EntryTotals | null>(null);
   const [dispTotals, setDispTotals]   = useState<EntryTotals | null>(null);
   const [loading, setLoading]         = useState(true);
-  const [filters, setFilters]         = useState({ size: '', thickness: '' });
 
   const loadStock = useCallback(async () => {
     setLoading(true);
     try {
-      const params: Record<string, string> = {};
-      if (filters.size)      params.size      = filters.size;
-      if (filters.thickness) params.thickness = filters.thickness;
-      const [res, prodRes, dispRes] = await Promise.all([
-        stockApi.get(params),
+      const [detailRes, summaryRes, prodRes, dispRes] = await Promise.all([
+        stockApi.detail(),
+        stockApi.get(),
         productionApi.totals(),
         dispatchApi.totals(),
       ]);
-      setSummary(res.data.summary);
-      setTotals(res.data.totals);
+      setDetail(detailRes.data.data);
+      setStockTotals(summaryRes.data.totals);
       setProdTotals(prodRes.data);
       setDispTotals(dispRes.data);
     } catch {
@@ -39,19 +177,27 @@ export default function StockPage() {
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, []);
 
   useEffect(() => { loadStock(); }, [loadStock]);
 
+  // ── Split into 3 matrices ─────────────────────────────────
+  const is1239Rows   = detail.filter((r) => r.stamp === IS_1239_GRADE);
+  const normalRows   = detail.filter((r) => r.stamp !== IS_1239_GRADE);
+  const sixMRows     = normalRows.filter((r) => r.length === '6m' || r.length === '');
+  const customRows   = normalRows.filter((r) => r.length !== '6m' && r.length !== '');
+
   const exportExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(summary.map((s) => ({
-      Size:          s.size,
-      Thickness:     s.thickness,
-      'Prime MT':    s.prime_tonnage,
-      'Prime Pcs':   s.prime_pieces,
-      'Random MT':   s.random_tonnage,
-      'Random Pcs':  s.random_pieces,
-      'Total MT':    parseFloat(String(s.prime_tonnage)) + parseFloat(String(s.random_tonnage)),
+    const ws = XLSX.utils.json_to_sheet(detail.map((s) => ({
+      Size:         s.size,
+      Thickness:    s.thickness,
+      Length:       s.length,
+      'IS Grade':   s.stamp || '',
+      'Prime MT':   s.prime_tonnage,
+      'Prime Pcs':  s.prime_pieces,
+      'Random MT':  s.random_tonnage,
+      'Random Pcs': s.random_pieces,
+      'Total MT':   s.total_tonnage,
     })));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Live Stock');
@@ -68,7 +214,7 @@ export default function StockPage() {
             <button onClick={loadStock} className="btn-secondary">
               <RefreshCw size={15} /> Refresh
             </button>
-            <button onClick={exportExcel} className="btn-secondary" disabled={summary.length === 0}>
+            <button onClick={exportExcel} className="btn-secondary" disabled={detail.length === 0}>
               <Download size={15} /> Export
             </button>
           </>
@@ -93,98 +239,40 @@ export default function StockPage() {
         />
         <StatCard
           label="Live Stock (MT)"
-          value={parseFloat(String(totals?.grand_total_tonnage ?? 0)).toFixed(3)}
-          sub={`${totals?.grand_total_pieces ?? 0} pieces · ${summary.length} size combinations`}
+          value={parseFloat(String(stockTotals?.grand_total_tonnage ?? 0)).toFixed(3)}
+          sub={`${stockTotals?.grand_total_pieces ?? 0} pieces · ${detail.length} combinations`}
           icon={Package}
           color="green"
         />
       </div>
 
-      {/* Filters */}
-      <div className="card mb-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <Filter size={15} className="text-slate-400 mt-5" />
-          <div>
-            <label className="form-label">Size</label>
-            <input className="form-input w-36" placeholder="e.g. 50x50" value={filters.size}
-              onChange={(e) => setFilters((p) => ({ ...p, size: e.target.value }))} />
-          </div>
-          <div>
-            <label className="form-label">Thickness</label>
-            <input className="form-input w-28" placeholder="e.g. 2.9" value={filters.thickness}
-              onChange={(e) => setFilters((p) => ({ ...p, thickness: e.target.value }))} />
-          </div>
-          <button className="btn-primary mb-0.5" onClick={loadStock}>Apply</button>
-          <button className="btn-secondary mb-0.5" onClick={() => setFilters({ size: '', thickness: '' })}>Clear</button>
-        </div>
-      </div>
-
-      {/* Stock Table */}
       {loading ? (
         <div className="flex justify-center py-16"><Spinner size={32} /></div>
-      ) : summary.length === 0 ? (
-        <div className="card">
-          <EmptyState icon={Package} title="No stock found" description="Stock is calculated from production minus dispatch entries." />
-        </div>
       ) : (
-        <div className="card overflow-x-auto p-0">
-          <table className="w-full text-sm min-w-[700px]">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="table-th">Size</th>
-                <th className="table-th">Thickness</th>
-                <th className="table-th text-right">Prime MT</th>
-                <th className="table-th text-right">Prime Pcs</th>
-                <th className="table-th text-right">Random MT</th>
-                <th className="table-th text-right">Random Pcs</th>
-                <th className="table-th text-right">Total MT</th>
-                <th className="table-th text-right">Total Pcs</th>
-              </tr>
-            </thead>
-            <tbody>
-              {summary.map((row, idx) => {
-                const totalMT  = parseFloat(String(row.prime_tonnage)) + parseFloat(String(row.random_tonnage));
-                const totalPcs = (row.prime_pieces || 0) + (row.random_pieces || 0);
-                return (
-                  <tr key={idx} className="border-b border-slate-50 hover:bg-slate-50">
-                    <td className="table-td font-medium whitespace-nowrap">{row.size}</td>
-                    <td className="table-td">{row.thickness} mm</td>
-                    <td className="table-td text-right">
-                      <span className={`font-medium ${parseFloat(String(row.prime_tonnage)) > 0 ? 'text-blue-700' : 'text-slate-300'}`}>
-                        {parseFloat(String(row.prime_tonnage)).toFixed(3)}
-                      </span>
-                    </td>
-                    <td className="table-td text-right text-slate-600">{row.prime_pieces ?? 0}</td>
-                    <td className="table-td text-right">
-                      <span className={`font-medium ${parseFloat(String(row.random_tonnage)) > 0 ? 'text-amber-600' : 'text-slate-300'}`}>
-                        {parseFloat(String(row.random_tonnage)).toFixed(3)}
-                      </span>
-                    </td>
-                    <td className="table-td text-right text-slate-600">{row.random_pieces ?? 0}</td>
-                    <td className="table-td text-right font-bold text-green-700">{totalMT.toFixed(3)}</td>
-                    <td className="table-td text-right font-bold text-slate-700">{totalPcs}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot className="bg-slate-50 border-t-2 border-slate-200">
-              <tr>
-                <td className="table-td font-bold" colSpan={2}>TOTAL</td>
-                <td className="table-td text-right font-bold text-blue-700">
-                  {parseFloat(String(totals?.total_prime_tonnage ?? 0)).toFixed(3)}
-                </td>
-                <td className="table-td text-right font-bold">{totals?.total_prime_pieces ?? 0}</td>
-                <td className="table-td text-right font-bold text-amber-600">
-                  {parseFloat(String(totals?.total_random_tonnage ?? 0)).toFixed(3)}
-                </td>
-                <td className="table-td text-right font-bold">{totals?.total_random_pieces ?? 0}</td>
-                <td className="table-td text-right font-bold text-green-700">
-                  {parseFloat(String(totals?.grand_total_tonnage ?? 0)).toFixed(3)}
-                </td>
-                <td className="table-td text-right font-bold">{totals?.grand_total_pieces ?? 0}</td>
-              </tr>
-            </tfoot>
-          </table>
+        <div className="space-y-6">
+          {/* Matrix 1: 6m standard length (non IS-1239) */}
+          <StockMatrix
+            title="6m Standard Length Stock"
+            subtitle="Normal 6-metre pipes (all IS grades except IS 1239)"
+            rows={sixMRows}
+            color="blue"
+          />
+
+          {/* Matrix 2: Custom length (non IS-1239) */}
+          <StockMatrix
+            title="Custom Length Stock"
+            subtitle="All non-6m length pipes (all IS grades except IS 1239)"
+            rows={customRows}
+            color="violet"
+          />
+
+          {/* Matrix 3: SRJ + IS 1239 grade (any length) */}
+          <StockMatrix
+            title="SRJ + IS 1239 Grade Stock"
+            subtitle="IS 1239 grade pipes — tracked separately (any length)"
+            rows={is1239Rows}
+            color="rose"
+          />
         </div>
       )}
     </div>

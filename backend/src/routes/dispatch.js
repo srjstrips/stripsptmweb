@@ -24,6 +24,7 @@ const dispatchValidation = [
   body('supervisor').optional({ nullable: true }).isString(),
   body('delivery_location').optional({ nullable: true }).isString(),
   body('remark').optional({ nullable: true }).isString(),
+  body('stamp').optional({ nullable: true }).isString(),
 ];
 
 // ── GET /api/dispatch/totals ──────────────────────────────────
@@ -138,7 +139,7 @@ router.post('/', dispatchValidation, validate, async (req, res, next) => {
     prime_tonnage, prime_pieces,
     random_tonnage, random_pieces,
     party_name, vehicle_no, loading_slip_no, order_tat,
-    weight_per_pipe, pdi, supervisor, delivery_location, remark,
+    weight_per_pipe, pdi, supervisor, delivery_location, remark, stamp,
   } = req.body;
 
   const pt  = parseFloat(prime_tonnage  || 0);
@@ -197,12 +198,13 @@ router.post('/', dispatchValidation, validate, async (req, res, next) => {
         (date, size, thickness, length,
          prime_tonnage, prime_pieces, random_tonnage, random_pieces,
          party_name, vehicle_no, loading_slip_no, order_tat,
-         weight_per_pipe, pdi, supervisor, delivery_location, remark)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+         weight_per_pipe, pdi, supervisor, delivery_location, remark, stamp)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
        RETURNING *`,
       [date, size, thickness, length, pt, pp, rt, rp,
        party_name || null, vehicle_no || null, loading_slip_no || null, order_tat || null,
-       wpp, pdi || null, supervisor || null, delivery_location || null, remark || null]
+       wpp, pdi || null, supervisor || null, delivery_location || null, remark || null,
+       stamp || null]
     );
 
     res.status(201).json({ success: true, data: insertResult.rows[0] });
@@ -258,8 +260,8 @@ router.post('/import', async (req, res, next) => {
             (date, size, thickness, length,
              prime_tonnage, prime_pieces, random_tonnage, random_pieces,
              party_name, vehicle_no, loading_slip_no, order_tat,
-             weight_per_pipe, pdi, supervisor, delivery_location, remark)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+             weight_per_pipe, pdi, supervisor, delivery_location, remark, stamp)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
           [
             row.date, row.size, row.thickness, row.length,
             pt, pp, rt, rp,
@@ -267,6 +269,7 @@ router.post('/import', async (req, res, next) => {
             row.loading_slip_no || null, row.order_tat || null,
             wpp, row.pdi || null, row.supervisor || null,
             row.delivery_location || null, row.remark || null,
+            row.stamp || null,
           ]
         );
         await client.query('RELEASE SAVEPOINT row_save');

@@ -11,7 +11,7 @@ import EmptyState from '@/components/EmptyState';
 import Spinner from '@/components/Spinner';
 import { productionApi, ProductionEntry, MillSummaryRow, EntryTotals } from '@/lib/api';
 import CsvImportModal from '@/components/CsvImportModal';
-import { PIPE_SIZES, PIPE_THICKNESSES, STANDARD_LENGTH } from '@/lib/constants';
+import { PIPE_SIZES, PIPE_THICKNESSES, STANDARD_LENGTH, IS_GRADES } from '@/lib/constants';
 
 const SHIFTS = ['Shift A', 'Shift B'] as const;
 const MILLS  = ['Mill1', 'Mill2', 'Mill3', 'Mill4'] as const;
@@ -544,7 +544,12 @@ export default function ProductionPage() {
                       <td className="px-1 py-1" style={{ minWidth: 110 }}>{sel('size', PIPE_SIZES, 'Size…')}</td>
                       <td className="px-1 py-1" style={{ minWidth: 80 }}>{sel('thickness', PIPE_THICKNESSES, 'Thick…')}</td>
                       <td className="px-1 py-1" style={{ minWidth: 70 }}><input type="text" className="w-full border border-slate-200 rounded px-1 py-1 text-xs focus:outline-none focus:border-blue-400" value={row.length} onChange={(e) => setCell('length', e.target.value)} /></td>
-                      <td className="px-1 py-1" style={{ minWidth: 80 }}><input type="text" className="w-full border border-slate-200 rounded px-1.5 py-1 text-xs focus:outline-none focus:border-blue-400" value={row.stamp} onChange={(e) => setCell('stamp', e.target.value)} placeholder="Stamp" /></td>
+                      <td className="px-1 py-1" style={{ minWidth: 110 }}>
+                        <select className="w-full border border-slate-200 rounded px-1 py-1 text-xs focus:outline-none focus:border-blue-400" value={row.stamp} onChange={(e) => setCell('stamp', e.target.value)}>
+                          <option value="">Grade…</option>
+                          {IS_GRADES.map((g) => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                      </td>
                       <td className="px-1 py-1" style={{ minWidth: 72 }}>{inp('weight_per_pipe', 'number', '0.01')}</td>
                       <td className="px-1 py-1 bg-blue-50" style={{ minWidth: 72 }}>{inp('prime_tonnage', 'number', '0.001', 'bg-blue-50')}</td>
                       <td className="px-1 py-1 bg-blue-50" style={{ minWidth: 60 }}>{inp('prime_pieces', 'number', '1', 'bg-blue-50')}</td>
@@ -671,8 +676,11 @@ export default function ProductionPage() {
                     value={form.weight_per_pipe} onChange={field('weight_per_pipe')} placeholder="0.0000" />
                 </div>
                 <div>
-                  <label className="form-label">Stamp</label>
-                  <input className="form-input" value={form.stamp} onChange={field('stamp')} placeholder="e.g. IS1239" />
+                  <label className="form-label">IS Grade (Stamp)</label>
+                  <select className="form-select" value={form.stamp} onChange={field('stamp')}>
+                    <option value="">Select grade…</option>
+                    {IS_GRADES.map((g) => <option key={g} value={g}>{g}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="form-label">Raw Material Grade</label>

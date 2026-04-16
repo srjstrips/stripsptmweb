@@ -190,6 +190,12 @@ ALTER TABLE dispatch_entries
   ADD COLUMN IF NOT EXISTS remark            TEXT;
 
 -- ============================================================
+-- MIGRATION: Add stamp (IS grade) to dispatch_entries
+-- ============================================================
+ALTER TABLE dispatch_entries
+  ADD COLUMN IF NOT EXISTS stamp TEXT;
+
+-- ============================================================
 -- SEED DATA: Default Racks
 -- ============================================================
 INSERT INTO racks (rack_name, location, capacity) VALUES
