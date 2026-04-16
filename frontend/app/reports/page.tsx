@@ -9,7 +9,7 @@ import PageHeader from '@/components/PageHeader';
 import StatCard from '@/components/StatCard';
 import Spinner from '@/components/Spinner';
 import EmptyState from '@/components/EmptyState';
-import StockMatrix from '@/components/StockMatrix';
+import PrimePivotMatrix from '@/components/PrimePivotMatrix';
 import { stockApi, productionApi, dispatchApi, ProductionEntry, DispatchEntry, ReportProductionRow, StockSummaryRow, DetailedStockRow } from '@/lib/api';
 import { IS_1239_GRADE } from '@/lib/constants';
 
@@ -423,21 +423,21 @@ export default function ReportsPage() {
 
         {!matrixLoading && matrixDetail.length > 0 && (
           <>
-            <StockMatrix
-              title="6m Standard Length Stock"
-              subtitle={`Normal 6-metre pipes — as of ${format(new Date(matrixDate + 'T00:00:00'), 'dd MMM yyyy')}`}
+            <PrimePivotMatrix
+              title="6m Standard Length — Prime Stock (MT)"
+              subtitle={`Normal 6-metre pipes (excl. IS 1239) — as of ${format(new Date(matrixDate + 'T00:00:00'), 'dd MMM yyyy')}`}
               rows={sixMRows}
               color="blue"
             />
-            <StockMatrix
-              title="Custom Length Stock"
-              subtitle={`Non-6m length pipes — as of ${format(new Date(matrixDate + 'T00:00:00'), 'dd MMM yyyy')}`}
+            <PrimePivotMatrix
+              title="Custom Length — Prime Stock (MT)"
+              subtitle={`Non-6m length pipes (excl. IS 1239) — as of ${format(new Date(matrixDate + 'T00:00:00'), 'dd MMM yyyy')}`}
               rows={customRows}
               color="violet"
             />
-            <StockMatrix
-              title="SRJ + IS 1239 Grade Stock"
-              subtitle={`IS 1239 grade pipes — as of ${format(new Date(matrixDate + 'T00:00:00'), 'dd MMM yyyy')}`}
+            <PrimePivotMatrix
+              title="SRJ + IS 1239 Grade — Prime Stock (MT)"
+              subtitle={`IS 1239 grade pipes (any length) — as of ${format(new Date(matrixDate + 'T00:00:00'), 'dd MMM yyyy')}`}
               rows={is1239Rows}
               color="rose"
             />
