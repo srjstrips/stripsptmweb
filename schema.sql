@@ -154,6 +154,28 @@ CREATE INDEX IF NOT EXISTS idx_production_mill ON production_entries(mill_no);
 CREATE INDEX IF NOT EXISTS idx_production_mill_size ON production_entries(mill_no, size, thickness);
 
 -- ============================================================
+-- MIGRATION: Fix shift CHECK constraint (Day/Night → Shift A/Shift B)
+-- ============================================================
+DO $$
+DECLARE
+  con_name TEXT;
+BEGIN
+  SELECT conname INTO con_name
+  FROM pg_constraint
+  WHERE conrelid = 'production_entries'::regclass
+    AND contype = 'c'
+    AND pg_get_constraintdef(oid) LIKE '%shift%';
+
+  IF con_name IS NOT NULL THEN
+    EXECUTE 'ALTER TABLE production_entries DROP CONSTRAINT ' || quote_ident(con_name);
+  END IF;
+END $$;
+
+ALTER TABLE production_entries
+  ADD CONSTRAINT production_entries_shift_check
+  CHECK (shift IN ('Shift A', 'Shift B'));
+
+-- ============================================================
 -- MIGRATION: Extend dispatch_entries with logistics fields
 -- ============================================================
 ALTER TABLE dispatch_entries

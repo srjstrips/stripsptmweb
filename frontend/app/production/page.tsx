@@ -59,6 +59,7 @@ const EMPTY_BATCH_ROW = {
   size:           '',
   thickness:      '',
   length:         STANDARD_LENGTH,
+  stamp:          '',
   weight_per_pipe:'',
   prime_tonnage:  '',
   prime_pieces:   '',
@@ -156,18 +157,46 @@ export default function ProductionPage() {
 
   // ── Derived auto-calc values ──────────────────────────────
   const calc = {
-    random_pipes:   i(form.joint_pipes)   + i(form.cq_pipes)    + i(form.open_pipes),
-    random_tonnage: n(form.joint_tonnage) + n(form.cq_tonnage)  + n(form.open_tonnage),
-    total_pipes:    i(form.prime_pieces)  + i(form.joint_pipes) + i(form.cq_pipes)    + i(form.open_pipes),
-    total_tonnage:  n(form.prime_tonnage) + n(form.joint_tonnage) + n(form.cq_tonnage) + n(form.open_tonnage),
-    total_scrap_kg: n(form.scrap_endcut_kg) + n(form.scrap_bitcut_kg) + n(form.scrap_burning_kg),
+    random_pipes:     i(form.joint_pipes)   + i(form.cq_pipes)   + i(form.open_pipes),
+    random_tonnage:   n(form.joint_tonnage) + n(form.cq_tonnage) + n(form.open_tonnage),
+    total_pipes:      i(form.prime_pieces)  + i(form.joint_pipes) + i(form.cq_pipes) + i(form.open_pipes),
+    total_tonnage:    n(form.prime_tonnage) + n(form.joint_tonnage) + n(form.cq_tonnage) + n(form.open_tonnage),
+    total_scrap_kg:   n(form.scrap_endcut_kg) + n(form.scrap_bitcut_kg) + n(form.scrap_burning_kg),
+    coil_consumption: (n(form.prime_tonnage) + n(form.joint_tonnage) + n(form.cq_tonnage) + n(form.open_tonnage)) * 1.005,
   };
 
   const effectiveLength = form.length === 'Custom' ? form.customLength : form.length;
 
+  // Auto-calc pieces = round((tonnage_MT * 1000) / weight_per_pipe_kg)
+  const autoPieces = (tonStr: string, wppStr: string) => {
+    const t = parseFloat(tonStr) || 0;
+    const w = parseFloat(wppStr) || 0;
+    return t > 0 && w > 0 ? String(Math.round((t * 1000) / w)) : '';
+  };
+
   const field = (key: keyof FormState) =>
-    (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-      setForm((p) => ({ ...p, [key]: e.target.value }));
+    (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      const val = e.target.value;
+      setForm((p) => {
+        const next = { ...p, [key]: val };
+        const wpp = key === 'weight_per_pipe' ? val : p.weight_per_pipe;
+        // Recalc pieces whenever tonnage or weight changes
+        const pairs: Array<[keyof FormState, keyof FormState]> = [
+          ['prime_tonnage', 'prime_pieces'],
+          ['joint_tonnage', 'joint_pipes'],
+          ['cq_tonnage',    'cq_pipes'],
+          ['open_tonnage',  'open_pipes'],
+        ];
+        for (const [tKey, pKey] of pairs) {
+          if (key === tKey || key === 'weight_per_pipe') {
+            const tons = key === tKey ? val : p[tKey];
+            const auto = autoPieces(tons, wpp);
+            if (auto) next[pKey] = auto;
+          }
+        }
+        return next;
+      });
+    };
 
   const buildPayload = () => ({
     date:               form.date,
@@ -306,6 +335,7 @@ export default function ProductionPage() {
           size:               r.size,
           thickness:          r.thickness,
           length:             r.length || STANDARD_LENGTH,
+          stamp:              r.stamp || undefined,
           weight_per_pipe:    r.weight_per_pipe ? n(r.weight_per_pipe) : undefined,
           prime_tonnage:      n(r.prime_tonnage),
           prime_pieces:       i(r.prime_pieces),
@@ -440,6 +470,7 @@ export default function ProductionPage() {
                   <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">Size *</th>
                   <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">Thick *</th>
                   <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">Length</th>
+                  <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">Stamp</th>
                   <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">Wt/Pipe kg</th>
                   <th className="px-2 py-2 text-center text-blue-700 font-semibold whitespace-nowrap bg-blue-50" colSpan={2}>Prime</th>
                   <th className="px-2 py-2 text-center text-amber-700 font-semibold whitespace-nowrap bg-amber-50" colSpan={2}>Joint</th>
@@ -448,7 +479,7 @@ export default function ProductionPage() {
                   <th className="px-2 py-2"></th>
                 </tr>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500">
-                  <th /><th /><th /><th /><th /><th /><th /><th />
+                  <th /><th /><th /><th /><th /><th /><th /><th /><th />
                   <th className="px-2 py-1 bg-blue-50 font-normal">MT</th>
                   <th className="px-2 py-1 bg-blue-50 font-normal">Pcs</th>
                   <th className="px-2 py-1 bg-amber-50 font-normal">Pcs</th>
@@ -463,7 +494,26 @@ export default function ProductionPage() {
               <tbody>
                 {batchRows.map((row, idx) => {
                   const setCell = (key: keyof BatchRow, val: string) =>
-                    setBatchRows((prev) => prev.map((r, i) => i === idx ? { ...r, [key]: val } : r));
+                    setBatchRows((prev) => prev.map((r, i) => {
+                      if (i !== idx) return r;
+                      const next = { ...r, [key]: val };
+                      const wpp = key === 'weight_per_pipe' ? val : r.weight_per_pipe;
+                      const bPairs: Array<[keyof BatchRow, keyof BatchRow]> = [
+                        ['prime_tonnage', 'prime_pieces'],
+                        ['joint_tonnage', 'joint_pipes'],
+                        ['cq_tonnage',    'cq_pipes'],
+                        ['open_tonnage',  'open_pipes'],
+                      ];
+                      for (const [tKey, pKey] of bPairs) {
+                        if (key === tKey || key === 'weight_per_pipe') {
+                          const tons = key === tKey ? val : r[tKey];
+                          const t = parseFloat(tons) || 0;
+                          const w = parseFloat(wpp) || 0;
+                          if (t > 0 && w > 0) next[pKey] = String(Math.round((t * 1000) / w));
+                        }
+                      }
+                      return next;
+                    }));
                   const inp = (key: keyof BatchRow, type = 'text', step?: string, bg = '') => (
                     <input
                       type={type}
@@ -494,6 +544,7 @@ export default function ProductionPage() {
                       <td className="px-1 py-1" style={{ minWidth: 110 }}>{sel('size', PIPE_SIZES, 'Size…')}</td>
                       <td className="px-1 py-1" style={{ minWidth: 80 }}>{sel('thickness', PIPE_THICKNESSES, 'Thick…')}</td>
                       <td className="px-1 py-1" style={{ minWidth: 70 }}><input type="text" className="w-full border border-slate-200 rounded px-1 py-1 text-xs focus:outline-none focus:border-blue-400" value={row.length} onChange={(e) => setCell('length', e.target.value)} /></td>
+                      <td className="px-1 py-1" style={{ minWidth: 80 }}><input type="text" className="w-full border border-slate-200 rounded px-1.5 py-1 text-xs focus:outline-none focus:border-blue-400" value={row.stamp} onChange={(e) => setCell('stamp', e.target.value)} placeholder="Stamp" /></td>
                       <td className="px-1 py-1" style={{ minWidth: 72 }}>{inp('weight_per_pipe', 'number', '0.01')}</td>
                       <td className="px-1 py-1 bg-blue-50" style={{ minWidth: 72 }}>{inp('prime_tonnage', 'number', '0.001', 'bg-blue-50')}</td>
                       <td className="px-1 py-1 bg-blue-50" style={{ minWidth: 60 }}>{inp('prime_pieces', 'number', '1', 'bg-blue-50')}</td>
@@ -698,6 +749,10 @@ export default function ProductionPage() {
                   <p className="text-xs text-green-600 font-medium">Total Tonnage</p>
                   <p className="text-2xl font-bold text-green-800">{calc.total_tonnage.toFixed(3)} MT</p>
                 </div>
+              </div>
+              <div className="mt-3 bg-teal-100 rounded p-2 text-center">
+                <p className="text-xs text-teal-600 font-medium">Coil Consumption (auto) = Total × 1.005</p>
+                <p className="text-lg font-bold text-teal-800">{calc.coil_consumption.toFixed(3)} MT</p>
               </div>
             </div>
 
