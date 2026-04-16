@@ -671,9 +671,9 @@ export default function ProductionPage() {
               <p className="text-xs font-bold text-slate-600 mb-3 uppercase tracking-wide">Additional Details</p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
-                  <label className="form-label">Weight per Pipe (tons)</label>
-                  <input type="number" step="0.0001" min="0" className="form-input"
-                    value={form.weight_per_pipe} onChange={field('weight_per_pipe')} placeholder="0.0000" />
+                  <label className="form-label">Weight per Pipe (kg)</label>
+                  <input type="number" step="0.01" min="0" className="form-input"
+                    value={form.weight_per_pipe} onChange={field('weight_per_pipe')} placeholder="0.00" />
                 </div>
                 <div>
                   <label className="form-label">IS Grade (Stamp)</label>

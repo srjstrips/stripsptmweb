@@ -122,31 +122,36 @@ router.get('/report', async (req, res, next) => {
 
 // ── GET /api/stock/detail ──────────────────────────────────────
 // Stock grouped by size × thickness × length × stamp (IS grade)
-// Used for the 3-matrix display on the stock page
+// Optional ?date=YYYY-MM-DD for historical "as of" view
 router.get('/detail', async (req, res, next) => {
+  const { date } = req.query;
+  const prodWhere = date ? 'WHERE date <= $1' : '';
+  const dispWhere = date ? 'WHERE date <= $1' : '';
+  const params    = date ? [date] : [];
+
   try {
     const result = await db(
       `SELECT
-         COALESCE(p.size, d.size)                                                           AS size,
-         COALESCE(p.thickness, d.thickness)                                                 AS thickness,
-         COALESCE(p.length, d.length)                                                       AS length,
+         COALESCE(p.size, d.size)                                                             AS size,
+         COALESCE(p.thickness, d.thickness)                                                   AS thickness,
+         COALESCE(p.length, d.length)                                                         AS length,
          CASE WHEN COALESCE(p.stamp, d.stamp, '') = '' THEN NULL
-              ELSE COALESCE(p.stamp, d.stamp) END                                           AS stamp,
-         ROUND(GREATEST(0, COALESCE(p.prime_tonnage, 0) - COALESCE(d.prime_tonnage, 0)), 3) AS prime_tonnage,
-         GREATEST(0, COALESCE(p.prime_pieces, 0) - COALESCE(d.prime_pieces, 0))             AS prime_pieces,
+              ELSE COALESCE(p.stamp, d.stamp) END                                             AS stamp,
+         ROUND(GREATEST(0, COALESCE(p.prime_tonnage,  0) - COALESCE(d.prime_tonnage,  0)), 3) AS prime_tonnage,
+         GREATEST(0, COALESCE(p.prime_pieces,  0) - COALESCE(d.prime_pieces,  0))             AS prime_pieces,
          ROUND(GREATEST(0, COALESCE(p.random_tonnage, 0) - COALESCE(d.random_tonnage, 0)), 3) AS random_tonnage,
-         GREATEST(0, COALESCE(p.random_pieces, 0) - COALESCE(d.random_pieces, 0))           AS random_pieces,
+         GREATEST(0, COALESCE(p.random_pieces, 0) - COALESCE(d.random_pieces, 0))             AS random_pieces,
          ROUND(GREATEST(0,
            COALESCE(p.prime_tonnage, 0) + COALESCE(p.random_tonnage, 0)
            - COALESCE(d.prime_tonnage, 0) - COALESCE(d.random_tonnage, 0)
-         ), 3)                                                                               AS total_tonnage
+         ), 3)                                                                                 AS total_tonnage
        FROM (
          SELECT size, thickness, length, COALESCE(stamp, '') AS stamp,
            SUM(prime_tonnage)  AS prime_tonnage,
            SUM(prime_pieces)   AS prime_pieces,
            SUM(random_tonnage) AS random_tonnage,
            SUM(random_pipes)   AS random_pieces
-         FROM production_entries
+         FROM production_entries ${prodWhere}
          GROUP BY size, thickness, length, COALESCE(stamp, '')
        ) p
        FULL OUTER JOIN (
@@ -155,13 +160,13 @@ router.get('/detail', async (req, res, next) => {
            SUM(prime_pieces)   AS prime_pieces,
            SUM(random_tonnage) AS random_tonnage,
            SUM(random_pieces)  AS random_pieces
-         FROM dispatch_entries
+         FROM dispatch_entries ${dispWhere}
          GROUP BY size, thickness, length, COALESCE(stamp, '')
        ) d ON p.size = d.size AND p.thickness = d.thickness
           AND COALESCE(p.length, '') = COALESCE(d.length, '')
           AND p.stamp = d.stamp
        ORDER BY COALESCE(p.size, d.size), COALESCE(p.thickness, d.thickness)`,
-      []
+      params
     );
 
     res.json({ success: true, data: result.rows });

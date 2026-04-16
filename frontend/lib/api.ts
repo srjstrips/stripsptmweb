@@ -212,8 +212,8 @@ export const stockApi = {
     api.get<{ success: boolean; date: string; data: PrimeMatrixRow[] }>(
       '/api/stock/prime-matrix', { params: { date } }
     ),
-  detail: (params?: Record<string, string>) =>
+  detail: (date?: string) =>
     api.get<{ success: boolean; data: DetailedStockRow[] }>(
-      '/api/stock/detail', { params }
+      '/api/stock/detail', { params: date ? { date } : undefined }
     ),
 };
