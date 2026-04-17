@@ -5,13 +5,15 @@ import toast from 'react-hot-toast';
 import { BarChart3, Download, Search, Trash2 } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import PageHeader from '@/components/PageHeader';
 import StatCard from '@/components/StatCard';
 import Spinner from '@/components/Spinner';
 import EmptyState from '@/components/EmptyState';
 import PrimePivotMatrix from '@/components/PrimePivotMatrix';
 import { stockApi, productionApi, dispatchApi, ProductionEntry, DispatchEntry, ReportProductionRow, StockSummaryRow, DetailedStockRow } from '@/lib/api';
-import { IS_1239_GRADE } from '@/lib/constants';
+import { IS_1239_GRADE, PIPE_SIZES, PIPE_THICKNESSES } from '@/lib/constants';
 
 interface ReportData {
   production: ReportProductionRow[];
@@ -104,22 +106,117 @@ export default function ReportsPage() {
   }, [matrixDate]);
 
   // ── Split matrix into 3 categories ──────────────────────────
-  const is1239Rows  = matrixDetail.filter((r) => r.stamp === IS_1239_GRADE);
-  const normalRows  = matrixDetail.filter((r) => r.stamp !== IS_1239_GRADE);
-  const sixMRows    = normalRows.filter((r) => r.length === '6m' || r.length === '');
-  const customRows  = normalRows.filter((r) => r.length !== '6m' && r.length !== '');
+  const is1239Rows = matrixDetail.filter((r) => r.stamp === IS_1239_GRADE);
+  const normalRows = matrixDetail.filter((r) => r.stamp !== IS_1239_GRADE);
+  const sixMRows   = normalRows.filter((r) => r.length === '6m' || r.length === '');
+  const customRows = normalRows.filter((r) => r.length !== '6m' && r.length !== '');
 
-  const exportMatrixExcel = () => {
-    if (!matrixDetail.length) return;
-    const ws = XLSX.utils.json_to_sheet(matrixDetail.map((r) => ({
-      Size: r.size, Thickness: r.thickness, Length: r.length, 'IS Grade': r.stamp || '',
-      'Prime MT': r.prime_tonnage, 'Prime Pcs': r.prime_pieces,
-      'Random MT': r.random_tonnage, 'Random Pcs': r.random_pieces,
-      'Total MT': r.total_tonnage,
-    })));
+  type MatrixTab = '6m' | 'custom' | 'is1239';
+  const [matrixTab, setMatrixTab] = useState<MatrixTab>('6m');
+
+  const matrixTabRows: Record<MatrixTab, DetailedStockRow[]> = {
+    '6m':     sixMRows,
+    'custom': customRows,
+    'is1239': is1239Rows,
+  };
+  const matrixTabTitles: Record<MatrixTab, string> = {
+    '6m':     '6m Standard Length — Prime Stock (MT)',
+    'custom': 'Custom Length — Prime Stock (MT)',
+    'is1239': 'SRJ + IS 1239 Grade — Prime Stock (MT)',
+  };
+  const matrixTabColors: Record<MatrixTab, 'blue' | 'violet' | 'rose'> = {
+    '6m': 'blue', 'custom': 'violet', 'is1239': 'rose',
+  };
+
+  // ── Per-tab Excel export (pivot layout) ─────────────────────
+  const exportPivotExcel = (tab: MatrixTab) => {
+    const rows = matrixTabRows[tab];
+    if (!rows.length) return;
+
+    const cellMap = new Map<string, number>();
+    for (const r of rows) {
+      const key = `${r.size}|${r.thickness}`;
+      cellMap.set(key, (cellMap.get(key) ?? 0) + (parseFloat(String(r.prime_tonnage)) || 0));
+    }
+    const activeSizes  = PIPE_SIZES.filter((s) => rows.some((r) => r.size === s));
+    const activeThicks = PIPE_THICKNESSES.filter((t) => rows.some((r) => r.thickness === t));
+
+    const header = ['Size', ...activeThicks.map((t) => `${t}mm`), 'Row Total'];
+    const dataRows = activeSizes.map((size) => {
+      let rowTotal = 0;
+      const cells = activeThicks.map((t) => {
+        const v = cellMap.get(`${size}|${t}`) ?? 0;
+        rowTotal += v;
+        return v > 0 ? v.toFixed(3) : '';
+      });
+      return [size, ...cells, rowTotal > 0 ? rowTotal.toFixed(3) : ''];
+    });
+    const totalRow = [
+      'Col Total',
+      ...activeThicks.map((t) => {
+        const ct = activeSizes.reduce((s, sz) => s + (cellMap.get(`${sz}|${t}`) ?? 0), 0);
+        return ct > 0 ? ct.toFixed(3) : '';
+      }),
+      rows.reduce((s, r) => s + (parseFloat(String(r.prime_tonnage)) || 0), 0).toFixed(3),
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows, totalRow]);
+    ws['!cols'] = header.map(() => ({ wch: 10 }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Stock Matrix');
-    XLSX.writeFile(wb, `stock_matrix_${matrixDate}.xlsx`);
+    XLSX.writeFile(wb, `matrix_${tab}_${matrixDate}.xlsx`);
+  };
+
+  // ── Per-tab PDF export (pivot layout) ───────────────────────
+  const exportPivotPDF = (tab: MatrixTab) => {
+    const rows = matrixTabRows[tab];
+    if (!rows.length) return;
+    const title = matrixTabTitles[tab];
+
+    const cellMap = new Map<string, number>();
+    for (const r of rows) {
+      const key = `${r.size}|${r.thickness}`;
+      cellMap.set(key, (cellMap.get(key) ?? 0) + (parseFloat(String(r.prime_tonnage)) || 0));
+    }
+    const activeSizes  = PIPE_SIZES.filter((s) => rows.some((r) => r.size === s));
+    const activeThicks = PIPE_THICKNESSES.filter((t) => rows.some((r) => r.thickness === t));
+
+    const doc = new jsPDF({ orientation: 'landscape' });
+    doc.setFontSize(12);
+    doc.text(title, 14, 14);
+    doc.setFontSize(8);
+    doc.text(`As of ${format(new Date(matrixDate + 'T00:00:00'), 'dd MMM yyyy')}`, 14, 20);
+
+    const head = [['Size', ...activeThicks.map((t) => `${t}mm`), 'Row Total']];
+    const body = activeSizes.map((size) => {
+      let rowTotal = 0;
+      const cells = activeThicks.map((t) => {
+        const v = cellMap.get(`${size}|${t}`) ?? 0;
+        rowTotal += v;
+        return v > 0 ? v.toFixed(3) : '—';
+      });
+      return [size, ...cells, rowTotal > 0 ? rowTotal.toFixed(3) : '—'];
+    });
+    const foot = [[
+      'Col Total',
+      ...activeThicks.map((t) => {
+        const ct = activeSizes.reduce((s, sz) => s + (cellMap.get(`${sz}|${t}`) ?? 0), 0);
+        return ct > 0 ? ct.toFixed(3) : '—';
+      }),
+      rows.reduce((s, r) => s + (parseFloat(String(r.prime_tonnage)) || 0), 0).toFixed(3),
+    ]];
+
+    autoTable(doc, {
+      head, body, foot,
+      startY: 25,
+      styles: { fontSize: 6, cellPadding: 1.5 },
+      headStyles: { fillColor: [59, 130, 246], textColor: 255, fontStyle: 'bold' },
+      footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' },
+      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 22 } },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+    });
+
+    doc.save(`matrix_${tab}_${matrixDate}.pdf`);
   };
 
   const tabs: { key: TabKey; label: string }[] = [
@@ -387,8 +484,9 @@ export default function ReportsPage() {
       )}
 
       {/* ── Stock Matrix — always visible, independent of report ── */}
-      <div className="mt-8 space-y-4">
-        <div className="card">
+      <div className="mt-8">
+        {/* Date picker + load */}
+        <div className="card mb-4">
           <p className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
             <BarChart3 size={15} className="text-green-600" /> Stock Matrix (as of date)
           </p>
@@ -402,11 +500,6 @@ export default function ReportsPage() {
               {matrixLoading ? <Spinner size={15} /> : <Search size={15} />}
               {matrixLoading ? 'Loading…' : 'Show Stock'}
             </button>
-            {matrixDetail.length > 0 && (
-              <button className="btn-secondary mb-0.5" onClick={exportMatrixExcel}>
-                <Download size={14} /> Export Excel
-              </button>
-            )}
             <p className="text-xs text-slate-400 mb-1 self-end">
               Production − Dispatch up to and including this date.
             </p>
@@ -422,26 +515,55 @@ export default function ReportsPage() {
         )}
 
         {!matrixLoading && matrixDetail.length > 0 && (
-          <>
+          <div className="card p-0">
+            {/* Tab header + download buttons */}
+            <div className="flex items-center justify-between px-4 pt-3 border-b border-slate-200 flex-wrap gap-2">
+              <div className="flex gap-0">
+                {(['6m', 'custom', 'is1239'] as MatrixTab[]).map((key) => (
+                  <button
+                    key={key}
+                    onClick={() => setMatrixTab(key)}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      matrixTab === key
+                        ? 'border-blue-600 text-blue-700'
+                        : 'border-transparent text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {{ '6m': '6m Standard', 'custom': 'Custom Length', 'is1239': 'SRJ + IS 1239' }[key]}
+                    <span className="ml-1.5 text-xs text-slate-400">
+                      ({matrixTabRows[key].length > 0
+                        ? `${Array.from(new Set(matrixTabRows[key].map(r => r.size))).length} sizes`
+                        : '0'})
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 pb-2">
+                <button
+                  className="btn-secondary text-xs py-1"
+                  disabled={matrixTabRows[matrixTab].length === 0}
+                  onClick={() => exportPivotExcel(matrixTab)}
+                >
+                  <Download size={13} /> Excel
+                </button>
+                <button
+                  className="btn-secondary text-xs py-1"
+                  disabled={matrixTabRows[matrixTab].length === 0}
+                  onClick={() => exportPivotPDF(matrixTab)}
+                >
+                  <Download size={13} /> PDF
+                </button>
+              </div>
+            </div>
+
+            {/* Active matrix */}
             <PrimePivotMatrix
-              title="6m Standard Length — Prime Stock (MT)"
-              subtitle={`Normal 6-metre pipes (excl. IS 1239) — as of ${format(new Date(matrixDate + 'T00:00:00'), 'dd MMM yyyy')}`}
-              rows={sixMRows}
-              color="blue"
+              title={matrixTabTitles[matrixTab]}
+              subtitle={`As of ${format(new Date(matrixDate + 'T00:00:00'), 'dd MMM yyyy')}`}
+              rows={matrixTabRows[matrixTab]}
+              color={matrixTabColors[matrixTab]}
             />
-            <PrimePivotMatrix
-              title="Custom Length — Prime Stock (MT)"
-              subtitle={`Non-6m length pipes (excl. IS 1239) — as of ${format(new Date(matrixDate + 'T00:00:00'), 'dd MMM yyyy')}`}
-              rows={customRows}
-              color="violet"
-            />
-            <PrimePivotMatrix
-              title="SRJ + IS 1239 Grade — Prime Stock (MT)"
-              subtitle={`IS 1239 grade pipes (any length) — as of ${format(new Date(matrixDate + 'T00:00:00'), 'dd MMM yyyy')}`}
-              rows={is1239Rows}
-              color="rose"
-            />
-          </>
+          </div>
         )}
       </div>
     </div>
