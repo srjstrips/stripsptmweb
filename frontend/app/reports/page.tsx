@@ -303,13 +303,24 @@ export default function ReportsPage() {
           </div>
 
           {/* Summary Tab */}
-          {activeTab === 'summary' && (
+          {activeTab === 'summary' && (() => {
+            // Build full grid: all sizes × all thicknesses, show 0 where no data
+            const allCombos = PIPE_SIZES.flatMap((sz) =>
+              PIPE_THICKNESSES.map((th) => ({ size: sz, thickness: th }))
+            );
+            const summaryRows = allCombos.map(({ size, thickness }) => {
+              const p = report.production.find((x) => x.size === size && x.thickness === thickness);
+              const d = report.dispatch.find((x) => x.size === size && x.thickness === thickness);
+              return { size, thickness, p, d };
+            });
+            const hasData = summaryRows.some(({ p, d }) => p || d);
+            return (
             <div className="card overflow-x-auto p-0">
               <div className="px-4 py-3 border-b border-slate-100">
                 <p className="text-sm font-semibold text-slate-600">Production vs Dispatch by Size & Thickness</p>
                 <p className="text-xs text-slate-400">{dateFrom} → {dateTo}</p>
               </div>
-              {report.production.length === 0 ? (
+              {!hasData ? (
                 <EmptyState icon={BarChart3} title="No data for this period" />
               ) : (
                 <table className="w-full text-sm min-w-[900px]">
@@ -327,21 +338,26 @@ export default function ReportsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {report.production.map((p, i) => {
-                      const d = report.dispatch.find((x) => x.size === p.size && x.thickness === p.thickness);
-                      const netPrime  = parseFloat(String(p.prime_tonnage))  - parseFloat(String(d?.prime_tonnage  ?? 0));
-                      const netRandom = parseFloat(String(p.random_tonnage)) - parseFloat(String(d?.random_tonnage ?? 0));
+                    {summaryRows.map(({ size, thickness, p, d }, i) => {
+                      const prodPrime  = parseFloat(String(p?.prime_tonnage  ?? 0));
+                      const prodRandom = parseFloat(String(p?.random_tonnage ?? 0));
+                      const dispPrime  = parseFloat(String(d?.prime_tonnage  ?? 0));
+                      const dispRandom = parseFloat(String(d?.random_tonnage ?? 0));
+                      const netPrime   = prodPrime  - dispPrime;
+                      const netRandom  = prodRandom - dispRandom;
+                      const scrap      = parseFloat(String(p?.scrap_tonnage  ?? 0));
+                      const hasAny = prodPrime || prodRandom || dispPrime || dispRandom || scrap;
                       return (
-                        <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
-                          <td className="table-td font-semibold">{p.size}</td>
-                          <td className="table-td">{p.thickness}</td>
-                          <td className="table-td text-right text-blue-700">{parseFloat(String(p.prime_tonnage)).toFixed(3)}</td>
-                          <td className="table-td text-right text-blue-600">{parseFloat(String(p.random_tonnage)).toFixed(3)}</td>
-                          <td className="table-td text-right text-amber-700">{parseFloat(String(d?.prime_tonnage  ?? 0)).toFixed(3)}</td>
-                          <td className="table-td text-right text-amber-600">{parseFloat(String(d?.random_tonnage ?? 0)).toFixed(3)}</td>
+                        <tr key={i} className={`border-b border-slate-50 hover:bg-slate-50 ${!hasAny ? 'opacity-40' : ''}`}>
+                          <td className="table-td font-semibold">{size}</td>
+                          <td className="table-td">{thickness}</td>
+                          <td className="table-td text-right text-blue-700">{prodPrime.toFixed(3)}</td>
+                          <td className="table-td text-right text-blue-600">{prodRandom.toFixed(3)}</td>
+                          <td className="table-td text-right text-amber-700">{dispPrime.toFixed(3)}</td>
+                          <td className="table-td text-right text-amber-600">{dispRandom.toFixed(3)}</td>
                           <td className={`table-td text-right font-medium ${netPrime  >= 0 ? 'text-green-700' : 'text-red-600'}`}>{netPrime.toFixed(3)}</td>
                           <td className={`table-td text-right font-medium ${netRandom >= 0 ? 'text-green-700' : 'text-red-600'}`}>{netRandom.toFixed(3)}</td>
-                          <td className="table-td text-right text-red-600">{parseFloat(String(p.scrap_tonnage)).toFixed(3)}</td>
+                          <td className="table-td text-right text-red-600">{scrap.toFixed(3)}</td>
                         </tr>
                       );
                     })}
@@ -361,7 +377,8 @@ export default function ReportsPage() {
                 </table>
               )}
             </div>
-          )}
+            );
+          })()}
 
           {/* Production Detail Tab */}
           {activeTab === 'production' && (

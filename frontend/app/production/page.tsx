@@ -59,6 +59,7 @@ const EMPTY_BATCH_ROW = {
   size:           '',
   thickness:      '',
   length:         STANDARD_LENGTH,
+  od:             '',
   stamp:          '',
   weight_per_pipe:'',
   prime_tonnage:  '',
@@ -69,6 +70,7 @@ const EMPTY_BATCH_ROW = {
   cq_tonnage:     '',
   open_pipes:     '',
   open_tonnage:   '',
+  scrap_kg:       '',
 };
 type BatchRow = typeof EMPTY_BATCH_ROW;
 
@@ -335,6 +337,7 @@ export default function ProductionPage() {
           size:               r.size,
           thickness:          r.thickness,
           length:             r.length || STANDARD_LENGTH,
+          od:                 r.od || undefined,
           stamp:              r.stamp || undefined,
           weight_per_pipe:    r.weight_per_pipe ? n(r.weight_per_pipe) : undefined,
           prime_tonnage:      n(r.prime_tonnage),
@@ -349,10 +352,10 @@ export default function ProductionPage() {
           random_tonnage:     randTonnage,
           total_pipes:        i(r.prime_pieces) + randPipes,
           total_tonnage:      n(r.prime_tonnage) + randTonnage,
-          scrap_endcut_kg:    0,
+          scrap_endcut_kg:    n(r.scrap_kg),
           scrap_bitcut_kg:    0,
           scrap_burning_kg:   0,
-          total_scrap_kg:     0,
+          total_scrap_kg:     n(r.scrap_kg),
           rejection_percent:  0,
         });
         ok++;
@@ -372,22 +375,32 @@ export default function ProductionPage() {
   };
 
   const exportExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(entries.map((e) => ({
-      Date: e.date, Shift: e.shift, Mill: e.mill_no,
-      Size: e.size, Thickness: e.thickness, Length: e.length,
-      'Weight/Pipe': e.weight_per_pipe, Stamp: e.stamp, 'RM Grade': e.raw_material_grade,
-      'Prime Pcs': e.prime_pieces, 'Prime MT': e.prime_tonnage,
-      'Joint Pcs': e.joint_pipes, 'Joint MT': e.joint_tonnage,
-      'CQ Pcs': e.cq_pipes, 'CQ MT': e.cq_tonnage,
-      'Open Pcs': e.open_pipes, 'Open MT': e.open_tonnage,
-      'Random Pcs': e.random_pipes, 'Random MT': e.random_tonnage,
-      'Total Pcs': e.total_pipes, 'Total MT': e.total_tonnage,
-      'Endcut Scrap (kg)': e.scrap_endcut_kg,
-      'Bitcut Scrap (kg)': e.scrap_bitcut_kg,
-      'Burning Scrap (kg)': e.scrap_burning_kg,
-      'Total Scrap (kg)': e.total_scrap_kg,
-      'Rejection %': e.rejection_percent,
-    })));
+    const ws = XLSX.utils.json_to_sheet(entries.map((e) => {
+      const primeTon  = parseFloat(String(e.prime_tonnage  ?? 0));
+      const randTon   = parseFloat(String(e.random_tonnage ?? 0));
+      const totalTon  = primeTon + randTon;
+      return {
+        'Date':                    e.date,
+        'Shift':                   e.shift,
+        'Mill NO.':                e.mill_no,
+        'Size':                    e.size,
+        'Thickness':               e.thickness,
+        'Length':                  e.length,
+        'OD':                      e.od ?? '',
+        'Stamp':                   e.stamp ?? '',
+        'Prime Tonnage':           primeTon,
+        'Prime Pieces':            e.prime_pieces ?? 0,
+        'Joint Tonnage':           parseFloat(String(e.joint_tonnage ?? 0)),
+        'CQ Tonnage':              parseFloat(String(e.cq_tonnage    ?? 0)),
+        'Open Tonnage':            parseFloat(String(e.open_tonnage  ?? 0)),
+        'Random Tonnage':          randTon,
+        'Random Pipe Pieces':      e.random_pipes  ?? 0,
+        'Prime + Random Tonnage':  totalTon,
+        'Prime + Random Pieces':   (e.total_pipes  ?? 0),
+        'Coil Consumption':        parseFloat((totalTon * 1.005).toFixed(3)),
+        'Scrap (KG)':              parseFloat(String(e.total_scrap_kg ?? 0)),
+      };
+    }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Production');
     XLSX.writeFile(wb, `production_${format(new Date(), 'yyyyMMdd')}.xlsx`);
@@ -460,7 +473,7 @@ export default function ProductionPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse" style={{ minWidth: 1400 }}>
+            <table className="w-full text-xs border-collapse" style={{ minWidth: 1800 }}>
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">#</th>
@@ -470,16 +483,19 @@ export default function ProductionPage() {
                   <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">Size *</th>
                   <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">Thick *</th>
                   <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">Length</th>
+                  <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">OD</th>
                   <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">Stamp</th>
                   <th className="px-2 py-2 text-left text-slate-600 font-semibold whitespace-nowrap">Wt/Pipe kg</th>
                   <th className="px-2 py-2 text-center text-blue-700 font-semibold whitespace-nowrap bg-blue-50" colSpan={2}>Prime</th>
                   <th className="px-2 py-2 text-center text-amber-700 font-semibold whitespace-nowrap bg-amber-50" colSpan={2}>Joint</th>
                   <th className="px-2 py-2 text-center text-orange-700 font-semibold whitespace-nowrap bg-orange-50" colSpan={2}>CQ</th>
                   <th className="px-2 py-2 text-center text-rose-700 font-semibold whitespace-nowrap bg-rose-50" colSpan={2}>Open</th>
+                  <th className="px-2 py-2 text-left text-red-600 font-semibold whitespace-nowrap">Scrap (kg)</th>
+                  <th className="px-2 py-2 text-center text-green-700 font-semibold whitespace-nowrap bg-green-50" colSpan={3}>Auto-Calculated</th>
                   <th className="px-2 py-2"></th>
                 </tr>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500">
-                  <th /><th /><th /><th /><th /><th /><th /><th /><th />
+                  <th /><th /><th /><th /><th /><th /><th /><th /><th /><th />
                   <th className="px-2 py-1 bg-blue-50 font-normal">MT</th>
                   <th className="px-2 py-1 bg-blue-50 font-normal">Pcs</th>
                   <th className="px-2 py-1 bg-amber-50 font-normal">Pcs</th>
@@ -488,6 +504,10 @@ export default function ProductionPage() {
                   <th className="px-2 py-1 bg-orange-50 font-normal">MT</th>
                   <th className="px-2 py-1 bg-rose-50 font-normal">Pcs</th>
                   <th className="px-2 py-1 bg-rose-50 font-normal">MT</th>
+                  <th />
+                  <th className="px-2 py-1 bg-green-50 font-normal text-green-700">Total MT</th>
+                  <th className="px-2 py-1 bg-green-50 font-normal text-green-700">Total Pcs</th>
+                  <th className="px-2 py-1 bg-teal-50 font-normal text-teal-700">Coil Cons.</th>
                   <th />
                 </tr>
               </thead>
@@ -535,6 +555,11 @@ export default function ProductionPage() {
                       {options.map((o) => <option key={o} value={o}>{o}</option>)}
                     </select>
                   );
+                  const randTon  = n(row.joint_tonnage) + n(row.cq_tonnage) + n(row.open_tonnage);
+                  const randPcs  = i(row.joint_pipes)   + i(row.cq_pipes)   + i(row.open_pipes);
+                  const totalTon = n(row.prime_tonnage) + randTon;
+                  const totalPcs = i(row.prime_pieces)  + randPcs;
+                  const coilCons = (totalTon * 1.005);
                   return (
                     <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                       <td className="px-2 py-1 text-slate-400 font-medium">{idx + 1}</td>
@@ -544,6 +569,7 @@ export default function ProductionPage() {
                       <td className="px-1 py-1" style={{ minWidth: 110 }}>{sel('size', PIPE_SIZES, 'Size…')}</td>
                       <td className="px-1 py-1" style={{ minWidth: 80 }}>{sel('thickness', PIPE_THICKNESSES, 'Thick…')}</td>
                       <td className="px-1 py-1" style={{ minWidth: 70 }}><input type="text" className="w-full border border-slate-200 rounded px-1 py-1 text-xs focus:outline-none focus:border-blue-400" value={row.length} onChange={(e) => setCell('length', e.target.value)} /></td>
+                      <td className="px-1 py-1" style={{ minWidth: 70 }}><input type="text" className="w-full border border-slate-200 rounded px-1 py-1 text-xs focus:outline-none focus:border-blue-400" value={row.od} onChange={(e) => setCell('od', e.target.value)} placeholder="—" /></td>
                       <td className="px-1 py-1" style={{ minWidth: 110 }}>
                         <select className="w-full border border-slate-200 rounded px-1 py-1 text-xs focus:outline-none focus:border-blue-400" value={row.stamp} onChange={(e) => setCell('stamp', e.target.value)}>
                           <option value="">Grade…</option>
@@ -559,6 +585,10 @@ export default function ProductionPage() {
                       <td className="px-1 py-1 bg-orange-50" style={{ minWidth: 72 }}>{inp('cq_tonnage', 'number', '0.001', 'bg-orange-50')}</td>
                       <td className="px-1 py-1 bg-rose-50" style={{ minWidth: 60 }}>{inp('open_pipes', 'number', '1', 'bg-rose-50')}</td>
                       <td className="px-1 py-1 bg-rose-50" style={{ minWidth: 72 }}>{inp('open_tonnage', 'number', '0.001', 'bg-rose-50')}</td>
+                      <td className="px-1 py-1" style={{ minWidth: 72 }}>{inp('scrap_kg', 'number', '0.001')}</td>
+                      <td className="px-2 py-1 bg-green-50 text-center font-semibold text-green-800" style={{ minWidth: 72 }}>{totalTon > 0 ? totalTon.toFixed(3) : '—'}</td>
+                      <td className="px-2 py-1 bg-green-50 text-center font-semibold text-green-800" style={{ minWidth: 60 }}>{totalPcs > 0 ? totalPcs : '—'}</td>
+                      <td className="px-2 py-1 bg-teal-50 text-center font-semibold text-teal-800" style={{ minWidth: 78 }}>{coilCons > 0 ? coilCons.toFixed(3) : '—'}</td>
                       <td className="px-1 py-1">
                         <button type="button" disabled={batchRows.length === 1}
                           onClick={() => setBatchRows((prev) => prev.filter((_, i) => i !== idx))}
