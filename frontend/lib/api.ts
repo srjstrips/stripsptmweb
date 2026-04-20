@@ -194,23 +194,42 @@ export interface PrimeMatrixRow {
 
 // ── Breakdown types ────────────────────────────────────────────
 
-export interface BreakdownTimeEntry {
+export interface ProductionSizeRow {
+  size: string;
+  thickness: string;
+  prime_mt: number;
+  random_mt: number;
+  total_pieces: number;
+  total_meters: number;
+}
+
+export interface BreakdownSizeEntry {
   id: string;
+  mill_entry_id: string;
   date: string;
   mill_no: string;
   size: string;
   thickness: string;
+  time_on_size: number;
+  prime_mt: number;
+  random_mt: number;
+  total_pieces: number;
+  total_meters: number;
+}
+
+export interface BreakdownMillEntry {
+  id: string;
+  date: string;
+  mill_no: string;
   total_time: number;
   electrical_bd: number;
   mechanical_bd: number;
   roll_change: number;
   production_bd: number;
-  prime_mt: number;
-  random_mt: number;
-  total_pieces: number;
-  total_meters: number;
   note: string | null;
-  created_at: string;
+  total_meters_all: number;
+  time_used: number;
+  sizes: BreakdownSizeEntry[];
 }
 
 export interface BreakdownReasonEntry {
@@ -223,16 +242,6 @@ export interface BreakdownReasonEntry {
   reason: string;
   time_taken: number;
   times_repeated: number;
-  created_at: string;
-}
-
-export interface ProductionSizeRow {
-  size: string;
-  thickness: string;
-  prime_mt: number;
-  random_mt: number;
-  total_pieces: number;
-  total_meters: number;
 }
 
 export interface BreakdownAnalysisRow {
@@ -249,21 +258,39 @@ export interface BreakdownAnalysisRow {
   max_single_time: number;
 }
 
+export interface SizeWiseSpeedRow {
+  size: string; thickness: string; mill_no: string; date: string;
+  time_on_size: number; total_meters: number; total_pieces: number;
+  prime_mt: number; random_mt: number; speed_mpm: number;
+}
+
+export interface MillWiseSpeedRow {
+  date: string; mill_no: string; total_time: number;
+  electrical_bd: number; mechanical_bd: number; roll_change: number; production_bd: number;
+  total_bd: number; available_time: number; total_meters: number; total_pieces: number;
+  prime_mt: number; random_mt: number; time_used: number;
+  mill_speed_mpm: number; efficiency_pct: number;
+}
+
 export const breakdownApi = {
   productionSizes: (date: string, mill_no: string) =>
     api.get<{ data: ProductionSizeRow[] }>(
       '/api/breakdown/production-sizes', { params: { date, mill_no } }
     ),
-  listTime: (params?: Record<string, string | number>) =>
-    api.get<{ data: BreakdownTimeEntry[]; pagination: Pagination }>(
-      '/api/breakdown/time', { params }
+  saveEntry: (data: object) =>
+    api.post<{ mill: BreakdownMillEntry; sizes: BreakdownSizeEntry[] }>(
+      '/api/breakdown/entry', data
     ),
-  saveTime: (rows: object[]) =>
-    api.post<{ saved: BreakdownTimeEntry[]; errors: object[]; count: number }>(
-      '/api/breakdown/time', rows
+  listEntries: (params?: Record<string, string>) =>
+    api.get<{ data: BreakdownMillEntry[] }>(
+      '/api/breakdown/entries', { params }
     ),
-  deleteTime: (id: string) =>
-    api.delete(`/api/breakdown/time/${id}`),
+  deleteEntry: (id: string) =>
+    api.delete(`/api/breakdown/entry/${id}`),
+  speedAnalysis: (params?: Record<string, string>) =>
+    api.get<{ sizeWise: SizeWiseSpeedRow[]; millWise: MillWiseSpeedRow[] }>(
+      '/api/breakdown/speed-analysis', { params }
+    ),
   listReasons: (params?: Record<string, string | number>) =>
     api.get<{ data: BreakdownReasonEntry[]; pagination: Pagination }>(
       '/api/breakdown/reasons', { params }
