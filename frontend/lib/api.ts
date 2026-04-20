@@ -192,6 +192,94 @@ export interface PrimeMatrixRow {
   prime_dispatched: number;
 }
 
+// ── Breakdown types ────────────────────────────────────────────
+
+export interface BreakdownTimeEntry {
+  id: string;
+  date: string;
+  mill_no: string;
+  size: string;
+  thickness: string;
+  total_time: number;
+  electrical_bd: number;
+  mechanical_bd: number;
+  roll_change: number;
+  production_bd: number;
+  prime_mt: number;
+  random_mt: number;
+  total_pieces: number;
+  total_meters: number;
+  note: string | null;
+  created_at: string;
+}
+
+export interface BreakdownReasonEntry {
+  id: string;
+  date: string;
+  mill_no: string;
+  size: string;
+  thickness: string;
+  department: 'Electrical' | 'Mechanical' | 'Production';
+  reason: string;
+  time_taken: number;
+  times_repeated: number;
+  created_at: string;
+}
+
+export interface ProductionSizeRow {
+  size: string;
+  thickness: string;
+  prime_mt: number;
+  random_mt: number;
+  total_pieces: number;
+  total_meters: number;
+}
+
+export interface BreakdownAnalysisRow {
+  size: string;
+  thickness: string;
+  department: string;
+  reason: string;
+  occurrence_count: number;
+  total_repeats: number;
+  total_time_lost: number;
+  mills_affected: string[];
+  mills_count: number;
+  days_occurred: number;
+  max_single_time: number;
+}
+
+export const breakdownApi = {
+  productionSizes: (date: string, mill_no: string) =>
+    api.get<{ data: ProductionSizeRow[] }>(
+      '/api/breakdown/production-sizes', { params: { date, mill_no } }
+    ),
+  listTime: (params?: Record<string, string | number>) =>
+    api.get<{ data: BreakdownTimeEntry[]; pagination: Pagination }>(
+      '/api/breakdown/time', { params }
+    ),
+  saveTime: (rows: object[]) =>
+    api.post<{ saved: BreakdownTimeEntry[]; errors: object[]; count: number }>(
+      '/api/breakdown/time', rows
+    ),
+  deleteTime: (id: string) =>
+    api.delete(`/api/breakdown/time/${id}`),
+  listReasons: (params?: Record<string, string | number>) =>
+    api.get<{ data: BreakdownReasonEntry[]; pagination: Pagination }>(
+      '/api/breakdown/reasons', { params }
+    ),
+  saveReasons: (rows: object[]) =>
+    api.post<{ saved: BreakdownReasonEntry[]; errors: object[]; count: number }>(
+      '/api/breakdown/reasons', rows
+    ),
+  deleteReason: (id: string) =>
+    api.delete(`/api/breakdown/reasons/${id}`),
+  analysis: (year: number, month: number) =>
+    api.get<{ data: BreakdownAnalysisRow[]; period: object }>(
+      '/api/breakdown/analysis', { params: { year, month } }
+    ),
+};
+
 export const stockApi = {
   get: (params?: Record<string, string>) =>
     api.get<{ success: boolean; totals: StockTotals; summary: StockSummaryRow[] }>(

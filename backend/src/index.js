@@ -13,6 +13,7 @@ process.on('unhandledRejection', (reason) => {
 const productionRoutes = require('./routes/production');
 const dispatchRoutes   = require('./routes/dispatch');
 const stockRoutes      = require('./routes/stock');
+const breakdownRoutes  = require('./routes/breakdown');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -31,6 +32,7 @@ app.get('/api/health', (_, res) => res.json({ status: 'ok', timestamp: new Date(
 app.use('/api/production', productionRoutes);
 app.use('/api/dispatch',   dispatchRoutes);
 app.use('/api/stock',      stockRoutes);
+app.use('/api/breakdown',  breakdownRoutes);
 
 // ── Global error handler ──────────────────────────────────────
 app.use((err, req, res, _next) => {

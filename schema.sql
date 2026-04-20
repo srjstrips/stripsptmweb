@@ -196,6 +196,50 @@ ALTER TABLE dispatch_entries
   ADD COLUMN IF NOT EXISTS stamp TEXT;
 
 -- ============================================================
+-- BREAKDOWN REPORTS: Time & Speed per Mill per Day per Size
+-- ============================================================
+CREATE TABLE IF NOT EXISTS breakdown_time (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  date              DATE NOT NULL,
+  mill_no           TEXT NOT NULL CHECK (mill_no IN ('Mill1', 'Mill2', 'Mill3', 'Mill4')),
+  size              TEXT NOT NULL,
+  thickness         TEXT NOT NULL,
+  total_time        INTEGER NOT NULL DEFAULT 1440,
+  electrical_bd     INTEGER NOT NULL DEFAULT 0,
+  mechanical_bd     INTEGER NOT NULL DEFAULT 0,
+  roll_change       INTEGER NOT NULL DEFAULT 0,
+  production_bd     INTEGER NOT NULL DEFAULT 0,
+  -- auto-filled from production entries at save time
+  prime_mt          NUMERIC(10,3) NOT NULL DEFAULT 0,
+  random_mt         NUMERIC(10,3) NOT NULL DEFAULT 0,
+  total_pieces      INTEGER NOT NULL DEFAULT 0,
+  total_meters      NUMERIC(12,2) NOT NULL DEFAULT 0,
+  note              TEXT,
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (date, mill_no, size, thickness)
+);
+
+-- ============================================================
+-- BREAKDOWN REPORTS: Reasons per Mill per Day per Size
+-- ============================================================
+CREATE TABLE IF NOT EXISTS breakdown_reasons (
+  id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  date             DATE NOT NULL,
+  mill_no          TEXT NOT NULL CHECK (mill_no IN ('Mill1', 'Mill2', 'Mill3', 'Mill4')),
+  size             TEXT NOT NULL,
+  thickness        TEXT NOT NULL,
+  department       TEXT NOT NULL CHECK (department IN ('Electrical', 'Mechanical', 'Production')),
+  reason           TEXT NOT NULL,
+  time_taken       INTEGER NOT NULL DEFAULT 0,
+  times_repeated   INTEGER NOT NULL DEFAULT 1,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_breakdown_time_date_mill   ON breakdown_time(date, mill_no);
+CREATE INDEX IF NOT EXISTS idx_breakdown_reasons_date_mill ON breakdown_reasons(date, mill_no);
+CREATE INDEX IF NOT EXISTS idx_breakdown_reasons_size      ON breakdown_reasons(size, thickness);
+
+-- ============================================================
 -- SEED DATA: Default Racks
 -- ============================================================
 INSERT INTO racks (rack_name, location, capacity) VALUES

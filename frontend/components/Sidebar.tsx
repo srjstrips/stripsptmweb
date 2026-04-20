@@ -9,14 +9,16 @@ import {
   BarChart3,
   Package,
   ChevronRight,
+  Zap,
 } from 'lucide-react';
 
 const nav = [
-  { href: '/',           label: 'Dashboard',   icon: LayoutDashboard },
-  { href: '/production', label: 'Production',  icon: Factory },
-  { href: '/dispatch',   label: 'Dispatch',    icon: Truck },
-  { href: '/stock',      label: 'Live Stock',  icon: Package },
-  { href: '/reports',    label: 'Reports',     icon: BarChart3 },
+  { href: '/',           label: 'Dashboard',         icon: LayoutDashboard },
+  { href: '/production', label: 'Production',        icon: Factory },
+  { href: '/dispatch',   label: 'Dispatch',          icon: Truck },
+  { href: '/stock',      label: 'Live Stock',        icon: Package },
+  { href: '/reports',    label: 'Reports',           icon: BarChart3 },
+  { href: '/breakdown',  label: 'Breakdown Reports', icon: Zap },
 ];
 
 export default function Sidebar() {
