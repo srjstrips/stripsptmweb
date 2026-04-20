@@ -823,7 +823,7 @@ export default function BreakdownPage() {
                     <select className="form-select w-36" value={anaFilter.size}
                       onChange={(e) => setAnaFilter((p) => ({ ...p, size: e.target.value }))}>
                       <option value="">All Sizes</option>
-                      {[...new Set(anaData.map((r) => r.size))].sort().map((s) => (
+                      {Array.from(new Set(anaData.map((r) => r.size))).sort().map((s) => (
                         <option key={s} value={s}>{s}</option>
                       ))}
                     </select>
