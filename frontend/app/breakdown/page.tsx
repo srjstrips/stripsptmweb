@@ -444,24 +444,24 @@ export default function BreakdownPage() {
                           )}
                         </td>
                         <td className="px-1 py-1" style={{ minWidth: 90 }}><TimeInput idx={idx} fkey="total_time" /></td>
-                        <td className="px-1 py-1 bg-red-50" style={{ minWidth: 72 }}><TimeInput idx={idx} fkey="electrical_bd" bg="bg-red-50" /></td>
-                        <td className="px-1 py-1 bg-red-50" style={{ minWidth: 72 }}><TimeInput idx={idx} fkey="mechanical_bd" bg="bg-red-50" /></td>
-                        <td className="px-1 py-1 bg-red-50" style={{ minWidth: 72 }}><TimeInput idx={idx} fkey="roll_change" bg="bg-red-50" /></td>
-                        <td className="px-1 py-1 bg-red-50" style={{ minWidth: 72 }}><TimeInput idx={idx} fkey="production_bd" bg="bg-red-50" /></td>
+                        <td className="px-1 py-1 bg-red-50" style={{ minWidth: 90 }}><TimeInput idx={idx} fkey="electrical_bd" bg="bg-red-50" /></td>
+                        <td className="px-1 py-1 bg-red-50" style={{ minWidth: 90 }}><TimeInput idx={idx} fkey="mechanical_bd" bg="bg-red-50" /></td>
+                        <td className="px-1 py-1 bg-red-50" style={{ minWidth: 90 }}><TimeInput idx={idx} fkey="roll_change" bg="bg-red-50" /></td>
+                        <td className="px-1 py-1 bg-red-50" style={{ minWidth: 90 }}><TimeInput idx={idx} fkey="production_bd" bg="bg-red-50" /></td>
                         {/* Auto-calc */}
-                        <td className="px-2 py-1 bg-green-50 text-center font-bold text-red-700" style={{ minWidth: 72 }}>
+                        <td className="px-2 py-1 bg-green-50 text-center font-bold text-red-700" style={{ minWidth: 90 }}>
                           {totalBd > 0 ? fmtMin(totalBd) : '—'}
                         </td>
-                        <td className="px-2 py-1 bg-green-50 text-center font-bold text-green-800" style={{ minWidth: 72 }}>
+                        <td className="px-2 py-1 bg-green-50 text-center font-bold text-green-800" style={{ minWidth: 90 }}>
                           {fmtMin(avail)}
                         </td>
                         {/* Production auto-filled */}
-                        <td className="px-1 py-1 bg-blue-50" style={{ minWidth: 72 }}><TimeInput idx={idx} fkey="prime_mt" disabled={row._locked} bg="bg-blue-50" /></td>
-                        <td className="px-1 py-1 bg-blue-50" style={{ minWidth: 72 }}><TimeInput idx={idx} fkey="random_mt" disabled={row._locked} bg="bg-blue-50" /></td>
+                        <td className="px-1 py-1 bg-blue-50" style={{ minWidth: 90 }}><TimeInput idx={idx} fkey="prime_mt" disabled={row._locked} bg="bg-blue-50" /></td>
+                        <td className="px-1 py-1 bg-blue-50" style={{ minWidth: 90 }}><TimeInput idx={idx} fkey="random_mt" disabled={row._locked} bg="bg-blue-50" /></td>
                         <td className="px-1 py-1 bg-blue-50" style={{ minWidth: 65 }}><TimeInput idx={idx} fkey="total_pieces" disabled={row._locked} bg="bg-blue-50" /></td>
-                        <td className="px-1 py-1 bg-blue-50" style={{ minWidth: 72 }}><TimeInput idx={idx} fkey="total_meters" disabled={row._locked} bg="bg-blue-50" /></td>
+                        <td className="px-1 py-1 bg-blue-50" style={{ minWidth: 90 }}><TimeInput idx={idx} fkey="total_meters" disabled={row._locked} bg="bg-blue-50" /></td>
                         {/* Speed / Eff */}
-                        <td className="px-2 py-1 bg-teal-50 text-center font-bold text-teal-800" style={{ minWidth: 72 }}>
+                        <td className="px-2 py-1 bg-teal-50 text-center font-bold text-teal-800" style={{ minWidth: 90 }}>
                           {speed > 0 ? `${speed.toFixed(2)} MPM` : '—'}
                         </td>
                         <td className={`px-2 py-1 bg-teal-50 text-center font-bold ${eff >= 80 ? 'text-green-700' : eff >= 60 ? 'text-amber-700' : 'text-red-600'}`} style={{ minWidth: 60 }}>
