@@ -418,7 +418,7 @@ export default function ProductionPage() {
   };
 
   const exportExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(entries.map((e) => {
+    const ws = XLSX.utils.json_to_sheet(sortedEntries.map((e) => {
       const primeTon  = parseFloat(String(e.prime_tonnage  ?? 0));
       const randTon   = parseFloat(String(e.random_tonnage ?? 0));
       const totalTon  = primeTon + randTon;
