@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, ChangeEvent, FormEvent } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, Trash2, Factory, Filter, Download, BarChart3, Pencil, X, Upload, Table2 } from 'lucide-react';
+import { Plus, Trash2, Factory, Filter, Download, BarChart3, Pencil, X, Upload, Table2, ArrowUpDown } from 'lucide-react';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import PageHeader from '@/components/PageHeader';
@@ -15,6 +15,15 @@ import { PIPE_SIZES, PIPE_THICKNESSES, STANDARD_LENGTH, IS_GRADES } from '@/lib/
 
 const SHIFTS = ['Shift A', 'Shift B'] as const;
 const MILLS  = ['Mill1', 'Mill2', 'Mill3', 'Mill4'] as const;
+
+const SIZE_OD_MAP: Record<string, number> = {
+  '15 NB': 21.3, '20 NB': 26.9, '25 NB': 33.7, '32 NB': 42.4,
+  '40 NB': 48.3, '50 NB': 60.3, '65 NB': 76.1, '80 NB': 88.9,
+  '100 NB': 114.3, '125 NB': 139, '150 NB': 163.5,
+  '19.05 OD': 19.05, '38.1 OD': 38.1, '101.6 OD': 101.6,
+  '114.3 OD': 114.3, '163.5 OD': 163.5, '165.1 OD': 165.1, '127 OD': 127,
+  '163.5': 163.5, '165.1': 165.1,
+};
 
 const EMPTY_FORM = {
   date:               format(new Date(), 'yyyy-MM-dd'),
@@ -91,6 +100,7 @@ export default function ProductionPage() {
   const [scrapEnteredForShift, setScrapEnteredForShift] = useState(false);
   // null = new entry, uuid = editing existing
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showImport, setShowImport]     = useState(false);
   const [showBatch, setShowBatch]       = useState(false);
   const [batchRows, setBatchRows]       = useState<BatchRow[]>([{ ...EMPTY_BATCH_ROW }]);
@@ -169,20 +179,20 @@ export default function ProductionPage() {
 
   const effectiveLength = form.length === 'Custom' ? form.customLength : form.length;
 
-  // Auto-calc pieces = round((tonnage_MT * 1000) / weight_per_pipe_kg)
-  const autoPieces = (tonStr: string, wppStr: string) => {
-    const t = parseFloat(tonStr) || 0;
-    const w = parseFloat(wppStr) || 0;
-    return t > 0 && w > 0 ? String(Math.round((t * 1000) / w)) : '';
-  };
-
   const field = (key: keyof FormState) =>
     (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
       const val = e.target.value;
       setForm((p) => {
         const next = { ...p, [key]: val };
         const wpp = key === 'weight_per_pipe' ? val : p.weight_per_pipe;
-        // Recalc pieces whenever tonnage or weight changes
+
+        // Auto-fill OD when size changes
+        if (key === 'size') {
+          const autoOd = SIZE_OD_MAP[val];
+          next.od = autoOd != null ? String(autoOd) : p.od;
+        }
+
+        // Tonnage → Pieces (when tonnage or wpp changes)
         const pairs: Array<[keyof FormState, keyof FormState]> = [
           ['prime_tonnage', 'prime_pieces'],
           ['joint_tonnage', 'joint_pipes'],
@@ -192,10 +202,27 @@ export default function ProductionPage() {
         for (const [tKey, pKey] of pairs) {
           if (key === tKey || key === 'weight_per_pipe') {
             const tons = key === tKey ? val : p[tKey];
-            const auto = autoPieces(tons, wpp);
-            if (auto) next[pKey] = auto;
+            const t = parseFloat(tons) || 0;
+            const w = parseFloat(wpp) || 0;
+            if (t > 0 && w > 0) next[pKey] = String(Math.round((t * 1000) / w));
           }
         }
+
+        // Pieces → Tonnage (when pieces change and wpp is set)
+        const reversePairs: Array<[keyof FormState, keyof FormState]> = [
+          ['prime_pieces', 'prime_tonnage'],
+          ['joint_pipes',  'joint_tonnage'],
+          ['cq_pipes',     'cq_tonnage'],
+          ['open_pipes',   'open_tonnage'],
+        ];
+        for (const [pKey, tKey] of reversePairs) {
+          if (key === pKey) {
+            const pcs = parseFloat(val) || 0;
+            const w   = parseFloat(wpp) || 0;
+            if (pcs > 0 && w > 0) next[tKey] = (pcs * w / 1000).toFixed(3);
+          }
+        }
+
         return next;
       });
     };
@@ -406,6 +433,12 @@ export default function ProductionPage() {
     XLSX.writeFile(wb, `production_${format(new Date(), 'yyyyMMdd')}.xlsx`);
   };
 
+  const sortedEntries = [...entries].sort((a, b) => {
+    const da = new Date(a.date).getTime();
+    const db = new Date(b.date).getTime();
+    return sortOrder === 'asc' ? da - db : db - da;
+  });
+
   // Group mill summary by mill for display
   const millGroups = millSummary.reduce<Record<string, MillSummaryRow[]>>((acc, row) => {
     if (!acc[row.mill_no]) acc[row.mill_no] = [];
@@ -530,6 +563,20 @@ export default function ProductionPage() {
                           const t = parseFloat(tons) || 0;
                           const w = parseFloat(wpp) || 0;
                           if (t > 0 && w > 0) next[pKey] = String(Math.round((t * 1000) / w));
+                        }
+                      }
+                      // Pieces → Tonnage
+                      const bRevPairs: Array<[keyof BatchRow, keyof BatchRow]> = [
+                        ['prime_pieces', 'prime_tonnage'],
+                        ['joint_pipes',  'joint_tonnage'],
+                        ['cq_pipes',     'cq_tonnage'],
+                        ['open_pipes',   'open_tonnage'],
+                      ];
+                      for (const [pKey, tKey] of bRevPairs) {
+                        if (key === pKey) {
+                          const pcs = parseFloat(val) || 0;
+                          const w   = parseFloat(wpp) || 0;
+                          if (pcs > 0 && w > 0) next[tKey] = (pcs * w / 1000).toFixed(3);
                         }
                       }
                       return next;
@@ -689,8 +736,16 @@ export default function ProductionPage() {
                   </div>
                 ) : (
                   <div>
-                    <label className="form-label">OD</label>
-                    <input className="form-input" value={form.od} onChange={field('od')} placeholder="e.g. 88.9mm" />
+                    <label className="form-label">
+                      OD {SIZE_OD_MAP[form.size] != null && <span className="text-indigo-400 font-normal">(auto)</span>}
+                    </label>
+                    <input
+                      className={`form-input ${SIZE_OD_MAP[form.size] != null ? 'bg-indigo-50 text-indigo-700 cursor-not-allowed' : ''}`}
+                      value={form.od}
+                      onChange={field('od')}
+                      readOnly={SIZE_OD_MAP[form.size] != null}
+                      placeholder="e.g. 88.9mm"
+                    />
                   </div>
                 )}
               </div>
@@ -940,7 +995,16 @@ export default function ProductionPage() {
               <table className="w-full text-sm min-w-[1200px]">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="table-th">Date</th>
+                    <th className="table-th">
+                      <button
+                        className="flex items-center gap-1 hover:text-blue-600 transition-colors"
+                        onClick={() => setSortOrder((o) => o === 'asc' ? 'desc' : 'asc')}
+                        title={`Sort ${sortOrder === 'asc' ? 'newest first' : 'oldest first'}`}
+                      >
+                        Date <ArrowUpDown size={12} className="text-slate-400" />
+                        <span className="text-xs text-slate-400">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                      </button>
+                    </th>
                     <th className="table-th">Shift</th>
                     <th className="table-th">Mill</th>
                     <th className="table-th">Size</th>
@@ -960,7 +1024,7 @@ export default function ProductionPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {entries.map((e) => (
+                  {sortedEntries.map((e) => (
                     <tr key={e.id} className="border-b border-slate-50 hover:bg-slate-50">
                       <td className="table-td whitespace-nowrap">{format(new Date(e.date), 'dd MMM yyyy')}</td>
                       <td className="table-td">

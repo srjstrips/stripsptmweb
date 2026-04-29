@@ -23,9 +23,9 @@ export default function PrimePivotMatrix({ title, subtitle, rows, color }: Props
     cellMap.set(key, (cellMap.get(key) ?? 0) + (parseFloat(String(r.prime_tonnage)) || 0));
   }
 
-  // Only show sizes/thicknesses that have data, in canonical order
-  const activeSizes  = PIPE_SIZES.filter((s) => rows.some((r) => r.size === s));
-  const activeThicks = PIPE_THICKNESSES.filter((t) => rows.some((r) => r.thickness === t));
+  // Show ALL sizes and thicknesses; cells with no data show 0
+  const activeSizes  = PIPE_SIZES as unknown as string[];
+  const activeThicks = PIPE_THICKNESSES as unknown as string[];
 
   const cell = (size: string, thick: string) => cellMap.get(`${size}|${thick}`) ?? 0;
 
@@ -41,7 +41,7 @@ export default function PrimePivotMatrix({ title, subtitle, rows, color }: Props
         {subtitle && <p className="text-xs opacity-80 mt-0.5">{subtitle}</p>}
       </div>
 
-      {activeSizes.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="p-4">
           <EmptyState icon={BarChart3} title="No prime stock" description="No entries match this category." />
         </div>
@@ -76,15 +76,15 @@ export default function PrimePivotMatrix({ title, subtitle, rows, color }: Props
                   {activeThicks.map((t) => {
                     const v = cell(size, t);
                     return (
-                      <td key={t} className="table-td text-center">
+                      <td key={t} className={`table-td text-center ${v > 0 ? 'bg-green-50' : ''}`}>
                         {v > 0
                           ? <span className={`font-medium ${thText}`}>{v.toFixed(3)}</span>
-                          : <span className="text-slate-200">—</span>}
+                          : <span className="text-slate-400 text-xs">0</span>}
                       </td>
                     );
                   })}
                   <td className="table-td text-right font-bold text-green-700 bg-green-50">
-                    {rt > 0 ? rt.toFixed(3) : <span className="text-slate-300">—</span>}
+                    {rt > 0 ? rt.toFixed(3) : <span className="text-slate-400 font-normal text-xs">0</span>}
                   </td>
                 </tr>
               );
@@ -100,8 +100,8 @@ export default function PrimePivotMatrix({ title, subtitle, rows, color }: Props
               {activeThicks.map((t) => {
                 const ct = colTotal(t);
                 return (
-                  <td key={t} className={`table-td text-center font-bold ${ct > 0 ? thText : 'text-slate-300'}`}>
-                    {ct > 0 ? ct.toFixed(3) : '—'}
+                  <td key={t} className={`table-td text-center font-bold ${ct > 0 ? thText : 'text-slate-400'}`}>
+                    {ct > 0 ? ct.toFixed(3) : '0'}
                   </td>
                 );
               })}

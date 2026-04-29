@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, ChangeEvent, FormEvent } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, Trash2, Truck, Filter, Download, AlertCircle, Upload, Table2, X } from 'lucide-react';
+import { Plus, Trash2, Truck, Filter, Download, AlertCircle, Upload, Table2, X, ArrowUpDown } from 'lucide-react';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import PageHeader from '@/components/PageHeader';
@@ -81,6 +81,7 @@ export default function DispatchPage() {
   const [showBatch, setShowBatch]           = useState(false);
   const [batchRows, setBatchRows]           = useState<BatchDispatchRow[]>([{ ...EMPTY_BATCH_DISPATCH_ROW }]);
   const [batchSubmitting, setBatchSubmitting] = useState(false);
+  const [sortOrder, setSortOrder]           = useState<'asc' | 'desc'>('desc');
 
   const loadEntries = useCallback(async (page = 1) => {
     setLoading(true);
@@ -263,13 +264,26 @@ export default function DispatchPage() {
       const val = e.target.value;
       setForm((p) => {
         const next = { ...p, [key]: val };
+        const wpp = key === 'weight_per_pipe' ? val : p.weight_per_pipe;
+        // Tonnage → Pieces
         if (key === 'prime_tonnage' || (key === 'weight_per_pipe' && p.prime_tonnage)) {
-          const auto = calcPieces(key === 'prime_tonnage' ? val : p.prime_tonnage, key === 'weight_per_pipe' ? val : p.weight_per_pipe);
+          const auto = calcPieces(key === 'prime_tonnage' ? val : p.prime_tonnage, wpp);
           if (auto) next.prime_pieces = auto;
         }
         if (key === 'random_tonnage' || (key === 'weight_per_pipe' && p.random_tonnage)) {
-          const auto = calcPieces(key === 'random_tonnage' ? val : p.random_tonnage, key === 'weight_per_pipe' ? val : p.weight_per_pipe);
+          const auto = calcPieces(key === 'random_tonnage' ? val : p.random_tonnage, wpp);
           if (auto) next.random_pieces = auto;
+        }
+        // Pieces → Tonnage
+        if (key === 'prime_pieces') {
+          const pcs = parseFloat(val) || 0;
+          const w   = parseFloat(wpp) || 0;
+          if (pcs > 0 && w > 0) next.prime_tonnage = (pcs * w / 1000).toFixed(3);
+        }
+        if (key === 'random_pieces') {
+          const pcs = parseFloat(val) || 0;
+          const w   = parseFloat(wpp) || 0;
+          if (pcs > 0 && w > 0) next.random_tonnage = (pcs * w / 1000).toFixed(3);
         }
         return next;
       });
@@ -662,11 +676,26 @@ export default function DispatchPage() {
           <div className="flex justify-center py-12"><Spinner size={28} /></div>
         ) : entries.length === 0 ? (
           <EmptyState icon={Truck} title="No dispatch entries" description="Click 'New Dispatch' to record outward movement." />
-        ) : (
+        ) : (() => {
+          const sortedEntries = [...entries].sort((a, b) => {
+            const da = new Date(a.date).getTime();
+            const db = new Date(b.date).getTime();
+            return sortOrder === 'asc' ? da - db : db - da;
+          });
+          return (
           <table className="w-full text-sm min-w-[1200px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="table-th">Date</th>
+                <th className="table-th">
+                  <button
+                    className="flex items-center gap-1 hover:text-blue-600 transition-colors"
+                    onClick={() => setSortOrder((o) => o === 'asc' ? 'desc' : 'asc')}
+                    title={`Sort ${sortOrder === 'asc' ? 'newest first' : 'oldest first'}`}
+                  >
+                    Date <ArrowUpDown size={12} className="text-slate-400" />
+                    <span className="text-xs text-slate-400">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                  </button>
+                </th>
                 <th className="table-th">Party Name</th>
                 <th className="table-th">Vehicle No.</th>
                 <th className="table-th">Slip No.</th>
@@ -685,7 +714,7 @@ export default function DispatchPage() {
               </tr>
             </thead>
             <tbody>
-              {entries.map((e) => (
+              {sortedEntries.map((e) => (
                 <tr key={e.id} className="border-b border-slate-50 hover:bg-slate-50">
                   <td className="table-td whitespace-nowrap">{format(new Date(e.date), 'dd MMM yyyy')}</td>
                   <td className="table-td whitespace-nowrap">{e.party_name || <span className="text-slate-300">—</span>}</td>
@@ -713,7 +742,8 @@ export default function DispatchPage() {
               ))}
             </tbody>
           </table>
-        )}
+          );
+        })()}
 
         {pagination.pages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
