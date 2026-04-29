@@ -547,8 +547,8 @@ export default function ProductionPage() {
                 </tr>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500">
                   <th /><th /><th /><th /><th /><th /><th /><th /><th /><th />
-                  <th className="px-2 py-1 bg-blue-50 font-normal">MT</th>
                   <th className="px-2 py-1 bg-blue-50 font-normal">Pcs</th>
+                  <th className="px-2 py-1 bg-blue-50 font-normal">MT</th>
                   <th className="px-2 py-1 bg-amber-50 font-normal">Pcs</th>
                   <th className="px-2 py-1 bg-amber-50 font-normal">MT</th>
                   <th className="px-2 py-1 bg-orange-50 font-normal">Pcs</th>
@@ -569,6 +569,12 @@ export default function ProductionPage() {
                       if (i !== idx) return r;
                       const next = { ...r, [key]: val };
                       const wpp = key === 'weight_per_pipe' ? val : r.weight_per_pipe;
+                      // Auto-fill OD when size or thickness changes
+                      if (key === 'size' || key === 'thickness') {
+                        const size  = key === 'size'      ? val : r.size;
+                        const thick = key === 'thickness' ? val : r.thickness;
+                        next.od = computeOD(size, thick);
+                      }
                       const bPairs: Array<[keyof BatchRow, keyof BatchRow]> = [
                         ['prime_tonnage', 'prime_pieces'],
                         ['joint_tonnage', 'joint_pipes'],
