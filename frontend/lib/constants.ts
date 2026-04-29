@@ -78,6 +78,7 @@ export const IS_GRADES = [
   'SRJ + IS-1161',
   'SRJ + IS-3601',
   'SRJ + IS 1239',
+  'SRJ + IS-18573',
 ] as const;
 
 export const IS_1239_GRADE = 'SRJ + IS 1239';

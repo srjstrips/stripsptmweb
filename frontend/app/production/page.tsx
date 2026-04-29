@@ -25,6 +25,18 @@ const SIZE_OD_MAP: Record<string, number> = {
   '163.5': 163.5, '165.1': 165.1,
 };
 
+function computeOD(size: string, thickness: string): string {
+  if (SIZE_OD_MAP[size] != null) return String(SIZE_OD_MAP[size]);
+  // Square/rectangular sizes: "20x20", "30x20", etc.
+  const xIdx = size.toLowerCase().indexOf('x');
+  if (xIdx > 0) {
+    const outerDim = parseFloat(size.slice(0, xIdx));
+    const t = parseFloat(thickness);
+    if (outerDim > 0 && t > 0) return (2 * (t + outerDim) / Math.PI).toFixed(2);
+  }
+  return '';
+}
+
 const EMPTY_FORM = {
   date:               format(new Date(), 'yyyy-MM-dd'),
   shift:              '' as string,
@@ -40,8 +52,8 @@ const EMPTY_FORM = {
   stamp:              '',
   raw_material_grade: '',
   // Prime
-  prime_tonnage:      '',
   prime_pieces:       '',
+  prime_tonnage:      '',
   // Joint
   joint_pipes:        '',
   joint_tonnage:      '',
@@ -186,10 +198,11 @@ export default function ProductionPage() {
         const next = { ...p, [key]: val };
         const wpp = key === 'weight_per_pipe' ? val : p.weight_per_pipe;
 
-        // Auto-fill OD when size changes
-        if (key === 'size') {
-          const autoOd = SIZE_OD_MAP[val];
-          next.od = autoOd != null ? String(autoOd) : p.od;
+        // Auto-fill OD when size or thickness changes
+        if (key === 'size' || key === 'thickness') {
+          const size  = key === 'size'      ? val : p.size;
+          const thick = key === 'thickness' ? val : p.thickness;
+          next.od = computeOD(size, thick);
         }
 
         // Tonnage → Pieces (when tonnage or wpp changes)
@@ -737,13 +750,13 @@ export default function ProductionPage() {
                 ) : (
                   <div>
                     <label className="form-label">
-                      OD {SIZE_OD_MAP[form.size] != null && <span className="text-indigo-400 font-normal">(auto)</span>}
+                      OD {computeOD(form.size, form.thickness) !== '' && <span className="text-indigo-400 font-normal">(auto)</span>}
                     </label>
                     <input
-                      className={`form-input ${SIZE_OD_MAP[form.size] != null ? 'bg-indigo-50 text-indigo-700 cursor-not-allowed' : ''}`}
+                      className={`form-input ${computeOD(form.size, form.thickness) !== '' ? 'bg-indigo-50 text-indigo-700 cursor-not-allowed' : ''}`}
                       value={form.od}
                       onChange={field('od')}
-                      readOnly={SIZE_OD_MAP[form.size] != null}
+                      readOnly={computeOD(form.size, form.thickness) !== ''}
                       placeholder="e.g. 88.9mm"
                     />
                   </div>
