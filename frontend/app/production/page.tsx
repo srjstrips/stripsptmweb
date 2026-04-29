@@ -81,6 +81,7 @@ const EMPTY_BATCH_ROW = {
   thickness:      '',
   length:         STANDARD_LENGTH,
   od:             '',
+  
   stamp:          '',
   weight_per_pipe:'',
   prime_pieces:   '',
