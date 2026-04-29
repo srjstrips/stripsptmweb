@@ -21,7 +21,7 @@ interface ReportData {
   scrap: { total_scrap: number; total_slit_wastage: number };
 }
 
-type TabKey = 'summary' | 'production' | 'dispatch' | 'scrap';
+type TabKey = 'summary' | 'production' | 'dispatch' | 'scrap' | 'prod-matrix' | 'disp-matrix';
 
 export default function ReportsPage() {
   const defaultFrom = format(subDays(new Date(), 30), 'yyyy-MM-dd');
@@ -128,6 +128,14 @@ export default function ReportsPage() {
     '6m': 'blue', 'custom': 'violet', 'is1239': 'rose',
   };
 
+  // ── Shared pivot builder — always all sizes × all thicknesses ─
+  const buildPivot = (cellMap: Map<string, number>) => {
+    const allSizes  = [...PIPE_SIZES]  as string[];
+    const allThicks = [...PIPE_THICKNESSES] as string[];
+    const grandTotal = Array.from(cellMap.values()).reduce((s, v) => s + v, 0);
+    return { allSizes, allThicks, grandTotal };
+  };
+
   // ── Per-tab Excel export (pivot layout) ─────────────────────
   const exportPivotExcel = (tab: MatrixTab) => {
     const rows = matrixTabRows[tab];
@@ -138,36 +146,35 @@ export default function ReportsPage() {
       const key = `${r.size}|${r.thickness}`;
       cellMap.set(key, (cellMap.get(key) ?? 0) + (parseFloat(String(r.prime_tonnage)) || 0));
     }
-    const activeSizes  = PIPE_SIZES.filter((s) => rows.some((r) => r.size === s));
-    const activeThicks = PIPE_THICKNESSES.filter((t) => rows.some((r) => r.thickness === t));
+    const { allSizes, allThicks, grandTotal } = buildPivot(cellMap);
 
-    const header = ['Size', ...activeThicks.map((t) => `${t}mm`), 'Row Total'];
-    const dataRows = activeSizes.map((size) => {
+    const header = ['Size', ...allThicks.map((t) => `${t}mm`), 'Row Total'];
+    const dataRows = allSizes.map((size) => {
       let rowTotal = 0;
-      const cells = activeThicks.map((t) => {
+      const cells = allThicks.map((t) => {
         const v = cellMap.get(`${size}|${t}`) ?? 0;
         rowTotal += v;
-        return v > 0 ? v.toFixed(3) : '';
+        return v > 0 ? v.toFixed(3) : '0';
       });
-      return [size, ...cells, rowTotal > 0 ? rowTotal.toFixed(3) : ''];
+      return [size, ...cells, rowTotal.toFixed(3)];
     });
     const totalRow = [
       'Col Total',
-      ...activeThicks.map((t) => {
-        const ct = activeSizes.reduce((s, sz) => s + (cellMap.get(`${sz}|${t}`) ?? 0), 0);
-        return ct > 0 ? ct.toFixed(3) : '';
+      ...allThicks.map((t) => {
+        const ct = allSizes.reduce((s, sz) => s + (cellMap.get(`${sz}|${t}`) ?? 0), 0);
+        return ct.toFixed(3);
       }),
-      rows.reduce((s, r) => s + (parseFloat(String(r.prime_tonnage)) || 0), 0).toFixed(3),
+      grandTotal.toFixed(3),
     ];
 
     const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows, totalRow]);
-    ws['!cols'] = header.map(() => ({ wch: 10 }));
+    ws['!cols'] = [{ wch: 14 }, ...allThicks.map(() => ({ wch: 8 })), { wch: 10 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Stock Matrix');
     XLSX.writeFile(wb, `matrix_${tab}_${matrixDate}.xlsx`);
   };
 
-  // ── Per-tab PDF export (pivot layout) ───────────────────────
+  // ── Per-tab PDF export — all sizes × thicknesses, fit 1 page ─
   const exportPivotPDF = (tab: MatrixTab) => {
     const rows = matrixTabRows[tab];
     if (!rows.length) return;
@@ -178,52 +185,76 @@ export default function ReportsPage() {
       const key = `${r.size}|${r.thickness}`;
       cellMap.set(key, (cellMap.get(key) ?? 0) + (parseFloat(String(r.prime_tonnage)) || 0));
     }
-    const activeSizes  = PIPE_SIZES.filter((s) => rows.some((r) => r.size === s));
-    const activeThicks = PIPE_THICKNESSES.filter((t) => rows.some((r) => r.thickness === t));
+    const { allSizes, allThicks, grandTotal } = buildPivot(cellMap);
 
-    const doc = new jsPDF({ orientation: 'landscape' });
-    doc.setFontSize(12);
-    doc.text(title, 14, 14);
-    doc.setFontSize(8);
-    doc.text(`As of ${format(new Date(matrixDate + 'T00:00:00'), 'dd MMM yyyy')}`, 14, 20);
+    const doc = new jsPDF({ orientation: 'landscape', format: 'a4' });
+    doc.setFontSize(9);
+    doc.text(title, 10, 10);
+    doc.setFontSize(6);
+    doc.text(`As of ${format(new Date(matrixDate + 'T00:00:00'), 'dd MMM yyyy')}`, 10, 15);
 
-    const head = [['Size', ...activeThicks.map((t) => `${t}mm`), 'Row Total']];
-    const body = activeSizes.map((size) => {
+    const head = [['Size', ...allThicks.map((t) => `${t}mm`), 'Total']];
+    const body = allSizes.map((size) => {
       let rowTotal = 0;
-      const cells = activeThicks.map((t) => {
+      const cells = allThicks.map((t) => {
         const v = cellMap.get(`${size}|${t}`) ?? 0;
         rowTotal += v;
-        return v > 0 ? v.toFixed(3) : '—';
+        return v > 0 ? v.toFixed(3) : '0';
       });
-      return [size, ...cells, rowTotal > 0 ? rowTotal.toFixed(3) : '—'];
+      return [size, ...cells, rowTotal.toFixed(3)];
     });
     const foot = [[
-      'Col Total',
-      ...activeThicks.map((t) => {
-        const ct = activeSizes.reduce((s, sz) => s + (cellMap.get(`${sz}|${t}`) ?? 0), 0);
-        return ct > 0 ? ct.toFixed(3) : '—';
+      'Total',
+      ...allThicks.map((t) => {
+        const ct = allSizes.reduce((s, sz) => s + (cellMap.get(`${sz}|${t}`) ?? 0), 0);
+        return ct.toFixed(3);
       }),
-      rows.reduce((s, r) => s + (parseFloat(String(r.prime_tonnage)) || 0), 0).toFixed(3),
+      grandTotal.toFixed(3),
     ]];
+
+    // Tight settings to fit all 52 sizes on 1 landscape A4 page
+    const colWidth = (277 - 18 - 12) / allThicks.length; // available width ÷ thickness cols
+    const colStyles: Record<number, { cellWidth: number; fontStyle?: 'bold' }> = {
+      0: { cellWidth: 18, fontStyle: 'bold' },
+      [allThicks.length + 1]: { cellWidth: 12 },
+    };
+    allThicks.forEach((_, i) => { colStyles[i + 1] = { cellWidth: parseFloat(colWidth.toFixed(1)) }; });
 
     autoTable(doc, {
       head, body, foot,
-      startY: 25,
-      styles: { fontSize: 6, cellPadding: 1.5 },
-      headStyles: { fillColor: [59, 130, 246], textColor: 255, fontStyle: 'bold' },
-      footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' },
-      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 22 } },
+      startY: 18,
+      margin: { left: 5, right: 5 },
+      styles: { fontSize: 4, cellPadding: 0.7, overflow: 'ellipsize' },
+      headStyles: { fillColor: [59, 130, 246], textColor: 255, fontStyle: 'bold', fontSize: 4 },
+      footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold', fontSize: 4 },
+      columnStyles: colStyles,
       alternateRowStyles: { fillColor: [248, 250, 252] },
+      tableWidth: 287,
     });
 
     doc.save(`matrix_${tab}_${matrixDate}.pdf`);
   };
 
+  // ── Pivot builder for production/dispatch raw data ───────────
+  const buildRawPivot = (
+    data: Array<{ size: string; thickness: string; prime_tonnage: unknown; random_tonnage: unknown }>
+  ) => {
+    const cellMap = new Map<string, number>();
+    for (const r of data) {
+      const key = `${r.size}|${r.thickness}`;
+      const v = (parseFloat(String(r.prime_tonnage)) || 0) + (parseFloat(String(r.random_tonnage)) || 0);
+      cellMap.set(key, (cellMap.get(key) ?? 0) + v);
+    }
+    return cellMap;
+  };
+
   const tabs: { key: TabKey; label: string }[] = [
-    { key: 'summary',    label: 'Summary' },
-    { key: 'production', label: `Production (${rawProd.length})` },
-    { key: 'dispatch',   label: `Dispatch (${rawDisp.length})` },
-    { key: 'scrap',      label: 'Scrap / Wastage' },
+    { key: 'summary',     label: 'Summary' },
+    { key: 'production',  label: `Production (${rawProd.length})` },
+    { key: 'dispatch',    label: `Dispatch (${rawDisp.length})` },
+    { key: 'scrap',       label: 'Scrap / Wastage' },
+    { key: 'prod-matrix', label: 'Prod Matrix' },
+    { key: 'disp-matrix', label: 'Disp Matrix' },
   ];
 
   return (
@@ -497,6 +528,133 @@ export default function ReportsPage() {
               </div>
             </div>
           )}
+
+          {/* Production Matrix Tab */}
+          {(activeTab === 'prod-matrix' || activeTab === 'disp-matrix') && (() => {
+            const isProd   = activeTab === 'prod-matrix';
+            const data     = isProd ? rawProd : rawDisp;
+            const label    = isProd ? 'Production' : 'Dispatch';
+            const color    = isProd ? 'text-blue-700' : 'text-amber-700';
+            const headerBg = isProd ? 'bg-blue-600' : 'bg-amber-600';
+            const cellBg   = isProd ? 'bg-blue-50'  : 'bg-amber-50';
+            const cellText = isProd ? 'text-blue-700' : 'text-amber-700';
+            const cellMap  = buildRawPivot(data);
+            const allSizes  = [...PIPE_SIZES]  as string[];
+            const allThicks = [...PIPE_THICKNESSES] as string[];
+            const cell = (size: string, t: string) => cellMap.get(`${size}|${t}`) ?? 0;
+            const rowTotal  = (size: string) => allThicks.reduce((s, t) => s + cell(size, t), 0);
+            const colTotal  = (t: string)    => allSizes.reduce((s, sz) => s + cell(sz, t), 0);
+            const grandTotal = Array.from(cellMap.values()).reduce((s, v) => s + v, 0);
+
+            const exportExcelMatrix = () => {
+              const header = ['Size', ...allThicks.map((t) => `${t}mm`), 'Row Total'];
+              const bodyRows = allSizes.map((size) => {
+                const rt = rowTotal(size);
+                return [size, ...allThicks.map((t) => { const v = cell(size, t); return v > 0 ? v.toFixed(3) : '0'; }), rt.toFixed(3)];
+              });
+              const footRow = ['Col Total', ...allThicks.map((t) => colTotal(t).toFixed(3)), grandTotal.toFixed(3)];
+              const ws = XLSX.utils.aoa_to_sheet([header, ...bodyRows, footRow]);
+              ws['!cols'] = [{ wch: 14 }, ...allThicks.map(() => ({ wch: 8 })), { wch: 10 }];
+              const wb = XLSX.utils.book_new();
+              XLSX.utils.book_append_sheet(wb, ws, `${label} Matrix`);
+              XLSX.writeFile(wb, `${label.toLowerCase()}_matrix_${dateFrom}_${dateTo}.xlsx`);
+            };
+
+            const exportPDFMatrix = () => {
+              const doc = new jsPDF({ orientation: 'landscape', format: 'a4' });
+              doc.setFontSize(9);
+              doc.text(`${label} Matrix (Total MT) — ${dateFrom} → ${dateTo}`, 10, 10);
+              const head = [['Size', ...allThicks.map((t) => `${t}mm`), 'Total']];
+              const body = allSizes.map((size) => {
+                const rt = rowTotal(size);
+                return [size, ...allThicks.map((t) => { const v = cell(size, t); return v > 0 ? v.toFixed(3) : '0'; }), rt.toFixed(3)];
+              });
+              const foot = [['Total', ...allThicks.map((t) => colTotal(t).toFixed(3)), grandTotal.toFixed(3)]];
+              const colWidth = (277 - 18 - 12) / allThicks.length;
+              const colStyles: Record<number, { cellWidth: number; fontStyle?: 'bold' }> = {
+                0: { cellWidth: 18, fontStyle: 'bold' },
+                [allThicks.length + 1]: { cellWidth: 12 },
+              };
+              allThicks.forEach((_, i) => { colStyles[i + 1] = { cellWidth: parseFloat(colWidth.toFixed(1)) }; });
+              autoTable(doc, {
+                head, body, foot, startY: 16, margin: { left: 5, right: 5 },
+                styles: { fontSize: 4, cellPadding: 0.7, overflow: 'ellipsize' },
+                headStyles: { fillColor: isProd ? [59, 130, 246] : [217, 119, 6], textColor: 255, fontStyle: 'bold', fontSize: 4 },
+                footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold', fontSize: 4 },
+                columnStyles: colStyles,
+                alternateRowStyles: { fillColor: [248, 250, 252] },
+                tableWidth: 287,
+              });
+              doc.save(`${label.toLowerCase()}_matrix_${dateFrom}_${dateTo}.pdf`);
+            };
+
+            return (
+              <div className="card p-0">
+                <div className={`${headerBg} text-white px-4 py-3 flex items-center justify-between`}>
+                  <div>
+                    <h3 className="font-semibold text-sm">{label} Matrix — Total MT (Prime + Random)</h3>
+                    <p className="text-xs opacity-80 mt-0.5">{dateFrom} → {dateTo}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={exportExcelMatrix} className="btn-secondary text-xs py-1 bg-white/10 border-white/30 text-white hover:bg-white/20">
+                      <Download size={12} /> Excel
+                    </button>
+                    <button onClick={exportPDFMatrix} className="btn-secondary text-xs py-1 bg-white/10 border-white/30 text-white hover:bg-white/20">
+                      <Download size={12} /> PDF
+                    </button>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs" style={{ minWidth: allThicks.length * 70 + 200 }}>
+                    <thead>
+                      <tr className={`${cellBg} border-b border-slate-200`}>
+                        <th className={`table-th sticky left-0 ${cellBg} font-bold ${color} whitespace-nowrap`}>Size ↓ / Thick →</th>
+                        {allThicks.map((t) => (
+                          <th key={t} className={`table-th text-center ${color} whitespace-nowrap`}>{t} mm</th>
+                        ))}
+                        <th className="table-th text-right font-bold text-green-700 bg-green-50 whitespace-nowrap">Row Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allSizes.map((size, si) => {
+                        const rt = rowTotal(size);
+                        return (
+                          <tr key={size} className={si % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                            <td className={`table-td font-semibold text-slate-700 sticky left-0 whitespace-nowrap ${si % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>{size}</td>
+                            {allThicks.map((t) => {
+                              const v = cell(size, t);
+                              return (
+                                <td key={t} className={`table-td text-center ${v > 0 ? cellBg : ''}`}>
+                                  {v > 0 ? <span className={`font-medium ${cellText}`}>{v.toFixed(3)}</span> : <span className="text-slate-400 text-xs">0</span>}
+                                </td>
+                              );
+                            })}
+                            <td className="table-td text-right font-bold text-green-700 bg-green-50">
+                              {rt > 0 ? rt.toFixed(3) : <span className="text-slate-400 font-normal text-xs">0</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="border-t-2 border-slate-300 bg-slate-100">
+                      <tr>
+                        <td className="table-td font-bold text-slate-700 sticky left-0 bg-slate-100">Col Total</td>
+                        {allThicks.map((t) => {
+                          const ct = colTotal(t);
+                          return (
+                            <td key={t} className={`table-td text-center font-bold ${ct > 0 ? color : 'text-slate-400'}`}>
+                              {ct > 0 ? ct.toFixed(3) : '0'}
+                            </td>
+                          );
+                        })}
+                        <td className="table-td text-right font-bold text-green-700 bg-green-50">{grandTotal.toFixed(3)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
         </>
       )}
 
