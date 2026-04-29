@@ -81,7 +81,7 @@ const EMPTY_BATCH_ROW = {
   thickness:      '',
   length:         STANDARD_LENGTH,
   od:             '',
-  
+
   stamp:          '',
   weight_per_pipe:'',
   prime_pieces:   '',
@@ -252,8 +252,9 @@ export default function ProductionPage() {
     weight_per_pipe:    form.weight_per_pipe ? n(form.weight_per_pipe) : undefined,
     stamp:              form.stamp || undefined,
     raw_material_grade: form.raw_material_grade || undefined,
-    prime_tonnage:      n(form.prime_tonnage),
     prime_pieces:       i(form.prime_pieces),
+    prime_tonnage:      n(form.prime_tonnage),
+   
     joint_pipes:        i(form.joint_pipes),
     joint_tonnage:      n(form.joint_tonnage),
     cq_pipes:           i(form.cq_pipes),
@@ -307,8 +308,9 @@ export default function ProductionPage() {
       weight_per_pipe:    entry.weight_per_pipe != null ? String(entry.weight_per_pipe) : '',
       stamp:              entry.stamp ?? '',
       raw_material_grade: entry.raw_material_grade ?? '',
-      prime_tonnage:      String(entry.prime_tonnage ?? ''),
       prime_pieces:       String(entry.prime_pieces ?? ''),
+      prime_tonnage:      String(entry.prime_tonnage ?? ''),
+      
       joint_pipes:        String(entry.joint_pipes ?? ''),
       joint_tonnage:      String(entry.joint_tonnage ?? ''),
       cq_pipes:           String(entry.cq_pipes ?? ''),
@@ -381,8 +383,9 @@ export default function ProductionPage() {
           od:                 r.od || undefined,
           stamp:              r.stamp || undefined,
           weight_per_pipe:    r.weight_per_pipe ? n(r.weight_per_pipe) : undefined,
-          prime_tonnage:      n(r.prime_tonnage),
           prime_pieces:       i(r.prime_pieces),
+          prime_tonnage:      n(r.prime_tonnage),
+          
           joint_pipes:        i(r.joint_pipes),
           joint_tonnage:      n(r.joint_tonnage),
           cq_pipes:           i(r.cq_pipes),
@@ -429,8 +432,9 @@ export default function ProductionPage() {
         'Length':                  e.length,
         'OD':                      e.od ?? '',
         'Stamp':                   e.stamp ?? '',
-        'Prime Tonnage':           primeTon,
         'Prime Pieces':            e.prime_pieces ?? 0,
+        'Prime Tonnage':           primeTon,
+        
         'Joint Tonnage':           parseFloat(String(e.joint_tonnage ?? 0)),
         'CQ Tonnage':              parseFloat(String(e.cq_tonnage    ?? 0)),
         'Open Tonnage':            parseFloat(String(e.open_tonnage  ?? 0)),
@@ -638,8 +642,9 @@ export default function ProductionPage() {
                         </select>
                       </td>
                       <td className="px-1 py-1" style={{ minWidth: 72 }}>{inp('weight_per_pipe', 'number', '0.01')}</td>
-                      <td className="px-1 py-1 bg-blue-50" style={{ minWidth: 72 }}>{inp('prime_tonnage', 'number', '0.001', 'bg-blue-50')}</td>
                       <td className="px-1 py-1 bg-blue-50" style={{ minWidth: 60 }}>{inp('prime_pieces', 'number', '1', 'bg-blue-50')}</td>
+                      <td className="px-1 py-1 bg-blue-50" style={{ minWidth: 72 }}>{inp('prime_tonnage', 'number', '0.001', 'bg-blue-50')}</td>
+                      
                       <td className="px-1 py-1 bg-amber-50" style={{ minWidth: 60 }}>{inp('joint_pipes', 'number', '1', 'bg-amber-50')}</td>
                       <td className="px-1 py-1 bg-amber-50" style={{ minWidth: 72 }}>{inp('joint_tonnage', 'number', '0.001', 'bg-amber-50')}</td>
                       <td className="px-1 py-1 bg-orange-50" style={{ minWidth: 60 }}>{inp('cq_pipes', 'number', '1', 'bg-orange-50')}</td>
