@@ -4,16 +4,21 @@ const { query } = require('../db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
-const VALID_ROLES = ['production', 'dispatch', 'reports', 'admin'];
 
-// All user-management routes require admin JWT
+const ALL_ROUTES = ['/', '/production', '/dispatch', '/stock', '/reports', '/breakdown', '/admin'];
+
+function routesToRole(routes) {
+  if (routes.includes('/admin')) return 'admin';
+  return 'custom';
+}
+
 router.use(requireAuth, requireAdmin);
 
-// GET /api/users — list all users (no passwords)
+// GET /api/users
 router.get('/', async (_req, res) => {
   try {
     const result = await query(
-      'SELECT id, username, role, created_at FROM ptm_users ORDER BY created_at ASC'
+      'SELECT id, username, role, allowed_routes, created_at FROM ptm_users ORDER BY created_at ASC'
     );
     res.json({ success: true, data: result.rows });
   } catch (err) {
@@ -21,18 +26,22 @@ router.get('/', async (_req, res) => {
   }
 });
 
-// POST /api/users — create user
+// POST /api/users
 router.post('/', async (req, res) => {
-  const { username, password, role } = req.body || {};
-  if (!username || !password || !role)
-    return res.status(400).json({ success: false, message: 'username, password and role are required' });
-  if (!VALID_ROLES.includes(role))
-    return res.status(400).json({ success: false, message: 'Invalid role' });
+  const { username, password, allowed_routes } = req.body || {};
+  if (!username || !password)
+    return res.status(400).json({ success: false, message: 'username and password are required' });
+  const routes = Array.isArray(allowed_routes) && allowed_routes.length > 0
+    ? allowed_routes.filter(r => ALL_ROUTES.includes(r))
+    : ['/'];
+  // Always include dashboard
+  if (!routes.includes('/')) routes.unshift('/');
+  const role = routesToRole(routes);
   try {
     const hash = await bcrypt.hash(password, 10);
     const result = await query(
-      'INSERT INTO ptm_users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id, username, role, created_at',
-      [username.toLowerCase().trim(), hash, role]
+      'INSERT INTO ptm_users (username, password_hash, role, allowed_routes) VALUES ($1, $2, $3, $4) RETURNING id, username, role, allowed_routes, created_at',
+      [username.toLowerCase().trim(), hash, role, routes]
     );
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err) {
@@ -42,28 +51,30 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PUT /api/users/:id — update username / password / role
+// PUT /api/users/:id
 router.put('/:id', async (req, res) => {
-  const { username, password, role } = req.body || {};
-  if (role && !VALID_ROLES.includes(role))
-    return res.status(400).json({ success: false, message: 'Invalid role' });
+  const { username, password, allowed_routes } = req.body || {};
   try {
-    // Build update dynamically
     const updates = [];
     const values  = [];
     let idx = 1;
     if (username) { updates.push(`username = $${idx++}`); values.push(username.toLowerCase().trim()); }
-    if (role)     { updates.push(`role = $${idx++}`);     values.push(role); }
+    if (Array.isArray(allowed_routes)) {
+      const routes = allowed_routes.filter(r => ALL_ROUTES.includes(r));
+      if (!routes.includes('/')) routes.unshift('/');
+      const role = routesToRole(routes);
+      updates.push(`allowed_routes = $${idx++}`); values.push(routes);
+      updates.push(`role = $${idx++}`);            values.push(role);
+    }
     if (password) {
       const hash = await bcrypt.hash(password, 10);
-      updates.push(`password_hash = $${idx++}`);
-      values.push(hash);
+      updates.push(`password_hash = $${idx++}`); values.push(hash);
     }
     if (updates.length === 0)
       return res.status(400).json({ success: false, message: 'Nothing to update' });
     values.push(req.params.id);
     const result = await query(
-      `UPDATE ptm_users SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id, username, role, created_at`,
+      `UPDATE ptm_users SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id, username, role, allowed_routes, created_at`,
       values
     );
     if (result.rowCount === 0)

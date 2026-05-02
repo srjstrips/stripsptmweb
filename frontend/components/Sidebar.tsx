@@ -38,7 +38,7 @@ export default function Sidebar({ open, onClose, onLogout }: SidebarProps) {
   const { user }  = useAuth();
   const { actions: pageActions } = usePageActions();
 
-  const allowedRoutes = user ? ROLE_ROUTES[user.role] : ['/'];
+  const allowedRoutes = user ? (user.routes ?? ROLE_ROUTES[user.role] ?? ['/']) : ['/'];
   const nav = ALL_NAV.filter(({ href }) =>
     allowedRoutes.some(r => r === href || (r !== '/' && href.startsWith(r)))
   );

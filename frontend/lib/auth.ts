@@ -1,8 +1,9 @@
-export type Role = 'production' | 'dispatch' | 'reports' | 'admin';
+export type Role = 'production' | 'dispatch' | 'reports' | 'admin' | 'custom';
 
 export interface AuthUser {
   username: string;
   role: Role;
+  routes: string[];
 }
 
 // Routes each role is allowed to visit
@@ -31,7 +32,8 @@ export function getUser(): AuthUser | null {
     clearAuth();
     return null;
   }
-  return { username: payload.username, role: payload.role };
+  const routes: string[] = payload.routes ?? ROLE_ROUTES[payload.role as Role] ?? ['/'];
+  return { username: payload.username, role: payload.role, routes };
 }
 
 export function saveAuth(token: string) {
@@ -45,7 +47,7 @@ export function clearAuth() {
   document.cookie = 'ptm_token=; path=/; max-age=0';
 }
 
-export function canAccess(role: Role, pathname: string): boolean {
-  const allowed = ROLE_ROUTES[role] ?? [];
+export function canAccess(role: Role, pathname: string, routes?: string[]): boolean {
+  const allowed = routes ?? ROLE_ROUTES[role] ?? [];
   return allowed.some(r => r === pathname || (r !== '/' && pathname.startsWith(r)));
 }

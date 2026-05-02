@@ -319,16 +319,17 @@ export const breakdownApi = {
 export interface PtmUser {
   id: string;
   username: string;
-  role: 'production' | 'dispatch' | 'reports' | 'admin';
+  role: string;
+  allowed_routes: string[];
   created_at: string;
 }
 
 export const usersApi = {
   list: () =>
     api.get<{ success: boolean; data: PtmUser[] }>('/api/users'),
-  create: (data: { username: string; password: string; role: string }) =>
+  create: (data: { username: string; password: string; allowed_routes: string[] }) =>
     api.post<{ success: boolean; data: PtmUser }>('/api/users', data),
-  update: (id: string, data: { username?: string; password?: string; role?: string }) =>
+  update: (id: string, data: { username?: string; password?: string; allowed_routes?: string[] }) =>
     api.put<{ success: boolean; data: PtmUser }>(`/api/users/${id}`, data),
   delete: (id: string) =>
     api.delete<{ success: boolean }>(`/api/users/${id}`),

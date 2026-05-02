@@ -13,7 +13,9 @@ function requireAuth(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  if (req.user?.role !== 'admin')
+  const isAdmin = req.user?.role === 'admin' ||
+    (Array.isArray(req.user?.routes) && req.user.routes.includes('/admin'));
+  if (!isAdmin)
     return res.status(403).json({ success: false, message: 'Admin access required' });
   next();
 }

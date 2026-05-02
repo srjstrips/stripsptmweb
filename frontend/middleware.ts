@@ -26,13 +26,16 @@ export function middleware(request: NextRequest) {
     }
 
     const role: string = payload.role;
-    const allowed: Record<string, string[]> = {
+    const ROLE_ROUTES: Record<string, string[]> = {
       production: ['/', '/production'],
       dispatch:   ['/', '/dispatch'],
       reports:    ['/', '/reports', '/stock'],
       admin:      ['/', '/production', '/dispatch', '/stock', '/reports', '/breakdown', '/admin'],
     };
-    const routes = allowed[role] ?? [];
+    // Use per-user routes from JWT if present, else fall back to role defaults
+    const routes: string[] = Array.isArray(payload.routes) && payload.routes.length > 0
+      ? payload.routes
+      : (ROLE_ROUTES[role] ?? ['/']);
     const ok = routes.some(r => r === pathname || (r !== '/' && pathname.startsWith(r)));
     if (!ok) return NextResponse.redirect(new URL('/', request.url));
   } catch {
