@@ -5,14 +5,14 @@ cd /var/www/ptm
 echo "Pulling latest code..."
 git pull origin main
 
-echo "Backend..."
+echo "Backend: install + migrate..."
 cd backend
 npm install
 node src/db/migrate.js
 pm2 restart ptm-backend
 cd ..
 
-echo "Frontend..."
+echo "Frontend: install + build..."
 cd frontend
 npm install
 npm run build
