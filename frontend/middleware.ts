@@ -30,7 +30,7 @@ export function middleware(request: NextRequest) {
       production: ['/', '/production'],
       dispatch:   ['/', '/dispatch'],
       reports:    ['/', '/reports', '/stock'],
-      admin:      ['/', '/production', '/dispatch', '/stock', '/reports', '/breakdown'],
+      admin:      ['/', '/production', '/dispatch', '/stock', '/reports', '/breakdown', '/admin'],
     };
     const routes = allowed[role] ?? [];
     const ok = routes.some(r => r === pathname || (r !== '/' && pathname.startsWith(r)));

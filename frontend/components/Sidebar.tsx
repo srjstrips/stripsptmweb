@@ -4,19 +4,20 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Factory, Truck, LayoutDashboard, BarChart3,
-  Package, Zap, LogOut, UserCircle, X,
+  Package, Zap, LogOut, UserCircle, X, Users,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { ROLE_ROUTES, Role } from '@/lib/auth';
 import { usePageActions } from '@/context/PageActionsContext';
 
 const ALL_NAV = [
-  { href: '/',           label: 'Dashboard',         icon: LayoutDashboard },
-  { href: '/production', label: 'Production',        icon: Factory },
-  { href: '/dispatch',   label: 'Dispatch',          icon: Truck },
-  { href: '/stock',      label: 'Live Stock',        icon: Package },
-  { href: '/reports',    label: 'Reports',           icon: BarChart3 },
-  { href: '/breakdown',  label: 'Breakdown',         icon: Zap },
+  { href: '/',             label: 'Dashboard',      icon: LayoutDashboard },
+  { href: '/production',   label: 'Production',     icon: Factory },
+  { href: '/dispatch',     label: 'Dispatch',       icon: Truck },
+  { href: '/stock',        label: 'Live Stock',     icon: Package },
+  { href: '/reports',      label: 'Reports',        icon: BarChart3 },
+  { href: '/breakdown',    label: 'Breakdown',      icon: Zap },
+  { href: '/admin/users',  label: 'User Management',icon: Users },
 ];
 
 const ROLE_LABELS: Record<Role, string> = {

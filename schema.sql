@@ -7,6 +7,17 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ============================================================
+-- USER MANAGEMENT TABLE
+-- ============================================================
+CREATE TABLE IF NOT EXISTS ptm_users (
+  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  username      TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  role          TEXT NOT NULL CHECK (role IN ('production', 'dispatch', 'reports', 'admin')),
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
 -- RACKS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS racks (

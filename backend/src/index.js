@@ -11,6 +11,7 @@ process.on('unhandledRejection', (reason) => {
 });
 
 const authRoutes       = require('./routes/auth');
+const usersRoutes      = require('./routes/users');
 const productionRoutes = require('./routes/production');
 const dispatchRoutes   = require('./routes/dispatch');
 const stockRoutes      = require('./routes/stock');
@@ -31,6 +32,7 @@ app.get('/api/health', (_, res) => res.json({ status: 'ok', timestamp: new Date(
 
 // ── Routes ────────────────────────────────────────────────────
 app.use('/api/auth',       authRoutes);
+app.use('/api/users',      usersRoutes);
 app.use('/api/production', productionRoutes);
 app.use('/api/dispatch',   dispatchRoutes);
 app.use('/api/stock',      stockRoutes);
