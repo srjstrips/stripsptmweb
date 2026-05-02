@@ -12,6 +12,7 @@ export const ROLE_ROUTES: Record<Role, string[]> = {
   dispatch:   ['/', '/dispatch'],
   reports:    ['/', '/reports', '/stock'],
   admin:      ['/', '/production', '/dispatch', '/stock', '/reports', '/breakdown', '/admin'],
+  custom:     ['/'],
 };
 
 function decodeJwt(token: string): (AuthUser & { exp: number }) | null {
