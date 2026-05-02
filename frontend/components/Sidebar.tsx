@@ -3,16 +3,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Factory,
-  Truck,
-  LayoutDashboard,
-  BarChart3,
-  Package,
-  ChevronRight,
-  Zap,
+  Factory, Truck, LayoutDashboard, BarChart3,
+  Package, ChevronRight, Zap, LogOut, UserCircle,
 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { ROLE_ROUTES, Role } from '@/lib/auth';
 
-const nav = [
+const ALL_NAV = [
   { href: '/',           label: 'Dashboard',         icon: LayoutDashboard },
   { href: '/production', label: 'Production',        icon: Factory },
   { href: '/dispatch',   label: 'Dispatch',          icon: Truck },
@@ -21,8 +18,21 @@ const nav = [
   { href: '/breakdown',  label: 'Breakdown Reports', icon: Zap },
 ];
 
-export default function Sidebar() {
+const ROLE_LABELS: Record<Role, string> = {
+  production: 'Production',
+  dispatch:   'Dispatch',
+  reports:    'Reports',
+  admin:      'Administrator',
+};
+
+export default function Sidebar({ onLogout }: { onLogout: () => void }) {
   const pathname = usePathname();
+  const { user }  = useAuth();
+
+  const allowedRoutes = user ? ROLE_ROUTES[user.role] : ['/'];
+  const nav = ALL_NAV.filter(({ href }) =>
+    allowedRoutes.some(r => r === href || (r !== '/' && href.startsWith(r)))
+  );
 
   return (
     <aside className="w-60 shrink-0 bg-slate-900 text-white flex flex-col h-full">
@@ -42,8 +52,7 @@ export default function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
         {nav.map(({ href, label, icon: Icon }) => {
-          const active =
-            href === '/' ? pathname === '/' : pathname.startsWith(href);
+          const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
           return (
             <Link
               key={href}
@@ -62,9 +71,22 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="px-5 py-4 border-t border-slate-700">
-        <p className="text-slate-500 text-[11px]">v1.0.0 · Production Ready</p>
+      {/* User info + logout */}
+      <div className="px-3 py-3 border-t border-slate-700">
+        <div className="flex items-center gap-2 px-2 py-2 rounded-lg bg-slate-800 mb-2">
+          <UserCircle size={18} className="text-slate-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-white truncate">{user?.username}</p>
+            <p className="text-[10px] text-slate-400">{user ? ROLE_LABELS[user.role] : ''}</p>
+          </div>
+        </div>
+        <button
+          onClick={onLogout}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+        >
+          <LogOut size={15} />
+          Sign Out
+        </button>
       </div>
     </aside>
   );

@@ -10,6 +10,7 @@ process.on('unhandledRejection', (reason) => {
   console.error('[unhandledRejection]', reason?.message ?? reason);
 });
 
+const authRoutes       = require('./routes/auth');
 const productionRoutes = require('./routes/production');
 const dispatchRoutes   = require('./routes/dispatch');
 const stockRoutes      = require('./routes/stock');
@@ -29,6 +30,7 @@ app.use(express.json({ limit: '2mb' }));
 app.get('/api/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
 // ── Routes ────────────────────────────────────────────────────
+app.use('/api/auth',       authRoutes);
 app.use('/api/production', productionRoutes);
 app.use('/api/dispatch',   dispatchRoutes);
 app.use('/api/stock',      stockRoutes);
