@@ -11,6 +11,7 @@ const ROLE_LABELS: Record<string, string> = {
   dispatch:   'Dispatch',
   reports:    'Reports',
   admin:      'Administrator',
+  custom:     'Custom',
 };
 
 export default function LayoutShell({ children }: { children: React.ReactNode }) {

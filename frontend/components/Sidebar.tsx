@@ -25,6 +25,7 @@ const ROLE_LABELS: Record<Role, string> = {
   dispatch:   'Dispatch',
   reports:    'Reports',
   admin:      'Administrator',
+  custom:     'Custom',
 };
 
 interface SidebarProps {
