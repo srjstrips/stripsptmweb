@@ -6,6 +6,8 @@ import StatCard from '@/components/StatCard';
 import PageHeader from '@/components/PageHeader';
 import Spinner from '@/components/Spinner';
 import { stockApi, productionApi, dispatchApi, StockTotals, StockSummaryRow, PeriodTotals } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
+import { canAccess } from '@/lib/auth';
 import Link from 'next/link';
 import { format } from 'date-fns';
 
@@ -17,6 +19,7 @@ interface DashboardData {
 }
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -91,29 +94,37 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        {[
+      {/* Quick Actions — only show links the current role can access */}
+      {(() => {
+        const actions = [
           { href: '/production', label: 'New Production Entry', icon: Factory, color: 'bg-blue-600 hover:bg-blue-700' },
           { href: '/dispatch',   label: 'New Dispatch Entry',   icon: Truck,   color: 'bg-amber-600 hover:bg-amber-700' },
           { href: '/stock',      label: 'View Live Stock',      icon: Package, color: 'bg-green-600 hover:bg-green-700' },
-        ].map(({ href, label, icon: Icon, color }) => (
-          <Link
-            key={href}
-            href={href}
-            className={`flex items-center gap-3 px-5 py-4 rounded-xl text-white font-medium ${color} transition-colors shadow-sm`}
-          >
-            <Icon size={20} className="shrink-0" />
-            {label}
-          </Link>
-        ))}
-      </div>
+        ].filter(({ href }) => user && canAccess(user.role, href));
+        if (actions.length === 0) return null;
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+            {actions.map(({ href, label, icon: Icon, color }) => (
+              <Link
+                key={href}
+                href={href}
+                className={`flex items-center gap-3 px-5 py-4 rounded-xl text-white font-medium ${color} transition-colors shadow-sm`}
+              >
+                <Icon size={20} className="shrink-0" />
+                {label}
+              </Link>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Top Stock Table */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-slate-700">Top Stock by Tonnage</h2>
-          <Link href="/stock" className="text-xs text-blue-600 hover:underline">View all →</Link>
+          {user && canAccess(user.role, '/stock') && (
+            <Link href="/stock" className="text-xs text-blue-600 hover:underline">View all →</Link>
+          )}
         </div>
         {data?.topStock.length === 0 ? (
           <div className="flex items-center gap-2 py-6 text-slate-400 text-sm justify-center">
