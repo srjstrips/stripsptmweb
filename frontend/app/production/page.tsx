@@ -12,6 +12,7 @@ import Spinner from '@/components/Spinner';
 import { productionApi, ProductionEntry, MillSummaryRow, EntryTotals } from '@/lib/api';
 import CsvImportModal from '@/components/CsvImportModal';
 import { PIPE_SIZES, PIPE_THICKNESSES, STANDARD_LENGTH, IS_GRADES } from '@/lib/constants';
+import { usePageActions } from '@/context/PageActionsContext';
 
 const SHIFTS = ['Shift A', 'Shift B'] as const;
 const MILLS  = ['Mill1', 'Mill2', 'Mill3', 'Mill4'] as const;
@@ -119,6 +120,7 @@ export default function ProductionPage() {
   const [batchRows, setBatchRows]       = useState<BatchRow[]>([{ ...EMPTY_BATCH_ROW }]);
   const [batchSubmitting, setBatchSubmitting] = useState(false);
   const [prodTotals, setProdTotals]     = useState<EntryTotals | null>(null);
+  const { setActions, clearActions } = usePageActions();
 
   const loadEntries = useCallback(async (page = 1) => {
     setLoading(true);
@@ -456,6 +458,19 @@ export default function ProductionPage() {
     return sortOrder === 'asc' ? da - db : db - da;
   });
 
+  // Register Import / Export / Delete All in the top nav bar
+  useEffect(() => {
+    setActions(
+      <>
+        <button onClick={exportExcel} className="btn-secondary text-xs py-1.5 px-2.5"><Download size={14} /> Export</button>
+        <button onClick={() => setShowImport(true)} className="btn-secondary text-xs py-1.5 px-2.5"><Upload size={14} /> Import</button>
+        <button onClick={handleDeleteAll} className="btn-danger text-xs py-1.5 px-2.5"><Trash2 size={14} /> Delete All</button>
+      </>
+    );
+    return () => clearActions();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortedEntries, setActions, clearActions]);
+
   // Group mill summary by mill for display
   const millGroups = millSummary.reduce<Record<string, MillSummaryRow[]>>((acc, row) => {
     if (!acc[row.mill_no]) acc[row.mill_no] = [];
@@ -470,9 +485,6 @@ export default function ProductionPage() {
         subtitle={`${pagination.total} total records`}
         actions={
           <>
-            <button onClick={exportExcel} className="btn-secondary"><Download size={15} /> Export</button>
-            <button onClick={() => setShowImport(true)} className="btn-secondary"><Upload size={15} /> Import CSV</button>
-            <button onClick={handleDeleteAll} className="btn-danger"><Trash2 size={15} /> Delete All</button>
             <button onClick={() => { setShowBatch((v) => !v); setShowForm(false); }} className="btn-secondary"><Table2 size={15} /> Batch Entry</button>
             <button onClick={() => { setShowForm(true); setShowBatch(false); setEditingId(null); setForm({ ...EMPTY_FORM }); }} className="btn-primary"><Plus size={15} /> New Entry</button>
           </>

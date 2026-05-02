@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Menu, LogOut, UserCircle } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { useAuth } from '@/context/AuthContext';
+import { usePageActions } from '@/context/PageActionsContext';
 
 const ROLE_LABELS: Record<string, string> = {
   production: 'Production',
@@ -16,6 +17,7 @@ const ROLE_LABELS: Record<string, string> = {
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname        = usePathname();
   const { user, ready, logout } = useAuth();
+  const { actions: pageActions } = usePageActions();
   const router          = useRouter();
   const isLogin         = pathname === '/login';
 
@@ -84,6 +86,13 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
           <span className="lg:hidden font-bold text-slate-700 text-sm">PTM System</span>
 
           <div className="flex-1" />
+
+          {/* Page-level actions injected by current page */}
+          {pageActions && (
+            <div className="flex items-center gap-2 border-r border-slate-200 pr-3 mr-1">
+              {pageActions}
+            </div>
+          )}
 
           {/* User info */}
           <div className="hidden sm:flex items-center gap-2 text-sm text-slate-600">

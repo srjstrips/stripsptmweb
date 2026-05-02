@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from '@/context/AuthContext';
+import { PageActionsProvider } from '@/context/PageActionsContext';
 import LayoutShell from '@/components/LayoutShell';
 
 export const metadata: Metadata = {
@@ -14,7 +15,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="h-screen overflow-hidden">
         <AuthProvider>
-          <LayoutShell>{children}</LayoutShell>
+          <PageActionsProvider>
+            <LayoutShell>{children}</LayoutShell>
+          </PageActionsProvider>
           <Toaster
             position="top-right"
             toastOptions={{
