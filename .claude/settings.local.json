@@ -4,7 +4,11 @@
       "Bash(grep -iE \"readme|\\\\.md|\\\\.json$\")",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\abhis\\\\Desktop\\\\dept\\\\softwares\\\\inward-outward-ptm\" -Force)",
       "Bash(Select-Object Name, PSIsContainer)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "PowerShell(curl -s -X POST http://localhost:5001/api/auth/login -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"admin@ptm\"}' 2>&1)",
+      "PowerShell(Invoke-RestMethod -Method POST -Uri \"http://localhost:5001/api/auth/login\" -ContentType \"application/json\" -Body '{\"username\":\"admin\",\"password\":\"admin@ptm\"}' 2>&1)",
+      "PowerShell(Invoke-RestMethod -Method POST -Uri \"http://localhost:5001/api/auth/login\" -ContentType \"application/json\" -Body '{\"username\":\"admin\",\"password\":\"admin@ptm\"}')",
+      "PowerShell($r = Invoke-WebRequest -Method POST -Uri \"http://localhost:5001/api/auth/login\" -ContentType \"application/json\" -Body '{\"username\":\"admin\",\"password\":\"admin@ptm\"}'; $r.StatusCode; $r.Content)"
     ]
   }
 }
