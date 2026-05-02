@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="flex h-screen overflow-hidden">
+      <body className="h-screen overflow-hidden">
         <AuthProvider>
           <LayoutShell>{children}</LayoutShell>
           <Toaster
