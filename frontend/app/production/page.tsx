@@ -458,15 +458,13 @@ export default function ProductionPage() {
     return sortOrder === 'asc' ? da - db : db - da;
   });
 
-  // Register Import / Export / Delete All in the top nav bar
+  // Register Import / Export / Delete All in the sidebar
   useEffect(() => {
-    setActions(
-      <>
-        <button onClick={exportExcel} className="btn-secondary text-xs py-1.5 px-2.5"><Download size={14} /> Export</button>
-        <button onClick={() => setShowImport(true)} className="btn-secondary text-xs py-1.5 px-2.5"><Upload size={14} /> Import</button>
-        <button onClick={handleDeleteAll} className="btn-danger text-xs py-1.5 px-2.5"><Trash2 size={14} /> Delete All</button>
-      </>
-    );
+    setActions([
+      { label: 'Download',   icon: Download, onClick: exportExcel,               variant: 'default' },
+      { label: 'Upload',     icon: Upload,   onClick: () => setShowImport(true), variant: 'default' },
+      { label: 'Delete',     icon: Trash2,   onClick: handleDeleteAll,           variant: 'danger' },
+    ]);
     return () => clearActions();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortedEntries, setActions, clearActions]);

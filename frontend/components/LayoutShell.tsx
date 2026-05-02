@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react';
 import { Menu, LogOut, UserCircle } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { useAuth } from '@/context/AuthContext';
-import { usePageActions } from '@/context/PageActionsContext';
 
 const ROLE_LABELS: Record<string, string> = {
   production: 'Production',
@@ -17,7 +16,6 @@ const ROLE_LABELS: Record<string, string> = {
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname        = usePathname();
   const { user, ready, logout } = useAuth();
-  const { actions: pageActions } = usePageActions();
   const router          = useRouter();
   const isLogin         = pathname === '/login';
 
@@ -87,29 +85,24 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
 
           <div className="flex-1" />
 
-          {/* Page-level actions injected by current page */}
-          {pageActions && (
-            <div className="flex items-center gap-2 border-r border-slate-200 pr-3 mr-1">
-              {pageActions}
+          {/* User icon + tooltip */}
+          <div className="relative group">
+            <button className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors" title={`${user.username} · ${ROLE_LABELS[user.role] ?? user.role}`}>
+              <UserCircle size={20} />
+            </button>
+            <div className="absolute right-0 top-full mt-1 hidden group-hover:flex flex-col bg-white border border-slate-200 rounded-lg shadow-lg px-3 py-2 text-xs text-slate-700 whitespace-nowrap z-50">
+              <span className="font-semibold">{user.username}</span>
+              <span className="text-slate-400">{ROLE_LABELS[user.role] ?? user.role}</span>
             </div>
-          )}
-
-          {/* User info */}
-          <div className="hidden sm:flex items-center gap-2 text-sm text-slate-600">
-            <UserCircle size={17} className="text-slate-400" />
-            <span className="font-medium">{user.username}</span>
-            <span className="text-slate-300">·</span>
-            <span className="text-xs text-slate-400">{ROLE_LABELS[user.role] ?? user.role}</span>
           </div>
 
-          {/* Logout */}
+          {/* Logout icon */}
           <button
             onClick={handleLogout}
             title="Sign Out"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-red-600 hover:bg-red-50 transition-colors font-medium"
+            className="p-2 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
           >
-            <LogOut size={15} />
-            <span className="hidden sm:inline">Logout</span>
+            <LogOut size={20} />
           </button>
         </header>
 

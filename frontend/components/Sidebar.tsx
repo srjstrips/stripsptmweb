@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { ROLE_ROUTES, Role } from '@/lib/auth';
+import { usePageActions } from '@/context/PageActionsContext';
 
 const ALL_NAV = [
   { href: '/',           label: 'Dashboard',         icon: LayoutDashboard },
@@ -34,6 +35,7 @@ interface SidebarProps {
 export default function Sidebar({ open, onClose, onLogout }: SidebarProps) {
   const pathname = usePathname();
   const { user }  = useAuth();
+  const { actions: pageActions } = usePageActions();
 
   const allowedRoutes = user ? ROLE_ROUTES[user.role] : ['/'];
   const nav = ALL_NAV.filter(({ href }) =>
@@ -103,6 +105,32 @@ export default function Sidebar({ open, onClose, onLogout }: SidebarProps) {
             );
           })}
         </nav>
+
+        {/* Page-level actions (Import / Export / Delete) */}
+        {pageActions.length > 0 && (
+          <div className={`border-t border-slate-700 shrink-0 py-3 ${open ? 'px-3' : 'px-2'}`}>
+            {open && <p className="text-[10px] uppercase tracking-widest text-slate-500 px-2 mb-2">Actions</p>}
+            <div className="flex flex-col gap-0.5">
+              {pageActions.map((action) => (
+                <button
+                  key={action.label}
+                  onClick={action.onClick}
+                  title={!open ? action.label : undefined}
+                  className={`
+                    flex items-center rounded-lg text-sm font-medium transition-colors
+                    ${open ? 'gap-3 px-3 py-2.5' : 'justify-center px-0 py-2.5'}
+                    ${action.variant === 'danger'
+                      ? 'text-red-400 hover:bg-red-900/30 hover:text-red-300'
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'}
+                  `}
+                >
+                  <action.icon size={18} className="shrink-0" />
+                  {open && <span className="flex-1 truncate text-left">{action.label}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* User + logout */}
         <div className={`border-t border-slate-700 shrink-0 py-3 ${open ? 'px-3' : 'px-2'}`}>

@@ -1,24 +1,32 @@
 'use client';
 
 import { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import { LucideIcon } from 'lucide-react';
+
+export interface SidebarAction {
+  label: string;
+  icon: LucideIcon;
+  onClick: () => void;
+  variant?: 'default' | 'danger';
+}
 
 interface PageActionsContextValue {
-  actions: ReactNode;
-  setActions: (node: ReactNode) => void;
+  actions: SidebarAction[];
+  setActions: (actions: SidebarAction[]) => void;
   clearActions: () => void;
 }
 
 const PageActionsContext = createContext<PageActionsContextValue>({
-  actions: null,
+  actions: [],
   setActions: () => {},
   clearActions: () => {},
 });
 
 export function PageActionsProvider({ children }: { children: ReactNode }) {
-  const [actions, setActionsState] = useState<ReactNode>(null);
+  const [actions, setActionsState] = useState<SidebarAction[]>([]);
 
-  const setActions = useCallback((node: ReactNode) => setActionsState(node), []);
-  const clearActions = useCallback(() => setActionsState(null), []);
+  const setActions = useCallback((a: SidebarAction[]) => setActionsState(a), []);
+  const clearActions = useCallback(() => setActionsState([]), []);
 
   return (
     <PageActionsContext.Provider value={{ actions, setActions, clearActions }}>
